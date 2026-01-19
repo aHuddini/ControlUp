@@ -1,0 +1,36 @@
+# Build outputs
+bin/
+obj/
+
+# Package outputs
+package/
+package2/
+pext/
+
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# JetBrains Rider
+.idea/
+
+# NuGet
+*.nupkg
+packages/
+
+# Temporary files
+temp_test/
+*.tmp
+*.temp
+*.log
+
+# Claude Code
+.claude/
+
+# OS generated files
+.DS_Store
+Thumbs.db
+desktop.ini

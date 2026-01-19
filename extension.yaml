@@ -1,0 +1,11 @@
+Id: ControlUp.8d646e1b-c919-49d7-be40-5ef9960064bc
+Name: ControlUp
+Author: Assistant
+Version: 1.0.0
+Module: ControlUp.dll
+Type: GenericPlugin
+Icon: icon.png
+Description: Automatically switches Playnite to fullscreen mode when an Xbox controller is connected. Perfect for console-like gaming experiences.
+Links:
+  - Name: GitHub Repository
+    Url: https://github.com/yourusername/ControlUp

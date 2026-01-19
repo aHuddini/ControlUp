@@ -1,0 +1,228 @@
+<UserControl x:Class="ControlUp.ControlUpSettingsView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:local="clr-namespace:ControlUp"
+             xmlns:controls="clr-namespace:ControlUp.Controls"
+             xmlns:sys="clr-namespace:System;assembly=mscorlib"
+             mc:Ignorable="d"
+             d:DesignHeight="600" d:DesignWidth="650">
+
+    <UserControl.Resources>
+        <ObjectDataProvider x:Key="FullscreenTriggerModes" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="local:FullscreenTriggerMode" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+        <ObjectDataProvider x:Key="NotificationPositions" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="local:NotificationPosition" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
+    </UserControl.Resources>
+
+    <TabControl>
+        <!-- General Tab -->
+        <TabItem Header="General">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="20">
+                    <TextBlock Text="ControlUp Settings" FontSize="18" FontWeight="Bold" Margin="0,0,0,20"/>
+
+                    <!-- Description -->
+                    <Border Background="#2D2D30"
+                            BorderBrush="#3F3F46"
+                            BorderThickness="1"
+                            CornerRadius="4"
+                            Padding="12"
+                            Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="How it works:" FontWeight="SemiBold" Margin="0,0,0,8" Foreground="#E0E0E0"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0">
+                                When a game controller is connected while in Desktop mode, a popup will appear asking if you want to switch to Fullscreen mode. You can accept with the A button or cancel with B.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Controller Type -->
+                    <TextBlock Text="Controller Type to Detect:" FontWeight="SemiBold" Margin="0,10,0,5"/>
+                    <TextBlock Text="Choose which type of controller triggers the popup." FontSize="11" Foreground="Gray" Margin="0,0,0,10"/>
+                    <ComboBox ItemsSource="{Binding Source={StaticResource FullscreenTriggerModes}}"
+                             SelectedItem="{Binding Settings.FullscreenTriggerMode}"
+                             Margin="0,0,0,20"/>
+
+                    <!-- Enable Logging -->
+                    <CheckBox Content="Enable detailed logging (for troubleshooting)"
+                             IsChecked="{Binding Settings.EnableLogging}"
+                             Margin="0,10,0,10"/>
+
+                    <!-- Controller Detection Section -->
+                    <TextBlock Text="Test Controller Detection:" FontWeight="SemiBold" Margin="0,20,0,5"/>
+                    <TextBlock Text="Click to see which controllers are currently connected." FontSize="11" Foreground="Gray" Margin="0,0,0,10"/>
+                    <Button Content="Detect Controllers"
+                           Command="{Binding DetectControllersCommand}"
+                           HorizontalAlignment="Left"
+                           Padding="10,5"
+                           Margin="0,0,0,10"/>
+                    <TextBox Text="{Binding DetectedControllersText}"
+                            IsReadOnly="True"
+                            TextWrapping="Wrap"
+                            VerticalScrollBarVisibility="Auto"
+                            Height="120"
+                            Margin="0,5,0,10"
+                            FontFamily="Consolas"
+                            FontSize="10"/>
+
+                    <!-- Open Logs Folder Button -->
+                    <Button Content="Open Extension Folder"
+                           Command="{Binding OpenLogsFolderCommand}"
+                           HorizontalAlignment="Left"
+                           Padding="10,5"
+                           Margin="0,10,0,0"/>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
+        <!-- Notification Tab -->
+        <TabItem Header="Notification">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="20">
+                    <TextBlock Text="Notification Appearance" FontSize="18" FontWeight="Bold" Margin="0,0,0,20"/>
+
+                    <!-- Position Section -->
+                    <TextBlock Text="Position" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Screen Position:" Margin="0,0,0,5"/>
+                            <ComboBox ItemsSource="{Binding Source={StaticResource NotificationPositions}}"
+                                     SelectedItem="{Binding Settings.NotificationPosition}"
+                                     Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Edge Margin:" Margin="0,10,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.NotificationEdgeMargin}"
+                                        Minimum="0" Maximum="100" Width="200"
+                                        TickFrequency="10" IsSnapToTickEnabled="False"/>
+                                <TextBlock Text="{Binding Settings.NotificationEdgeMargin, StringFormat={}{0} px}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="50"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Size Section -->
+                    <TextBlock Text="Size" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Width:" Margin="0,0,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.NotificationWidth}"
+                                        Minimum="300" Maximum="800" Width="200"
+                                        TickFrequency="50" IsSnapToTickEnabled="False"/>
+                                <TextBlock Text="{Binding Settings.NotificationWidth, StringFormat={}{0} px}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="60"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Height:" Margin="0,10,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.NotificationHeight}"
+                                        Minimum="200" Maximum="500" Width="200"
+                                        TickFrequency="50" IsSnapToTickEnabled="False"/>
+                                <TextBlock Text="{Binding Settings.NotificationHeight, StringFormat={}{0} px}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="60"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Timing Section -->
+                    <TextBlock Text="Timing" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Auto-close Duration:" Margin="0,0,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.NotificationDurationSeconds}"
+                                        Minimum="5" Maximum="30" Width="200"
+                                        TickFrequency="5" IsSnapToTickEnabled="False"/>
+                                <TextBlock Text="{Binding Settings.NotificationDurationSeconds, StringFormat={}{0} sec}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="50"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Blur Section -->
+                    <TextBlock Text="Blur Effect" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <CheckBox Content="Enable Acrylic Blur Effect"
+                                     IsChecked="{Binding Settings.EnableBlur}"
+                                     Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Blur Mode:" Margin="0,5,0,5"/>
+                            <ComboBox SelectedIndex="{Binding Settings.BlurMode}" Margin="0,0,0,10">
+                                <ComboBoxItem Content="Basic Blur"/>
+                                <ComboBoxItem Content="Acrylic Blur (Win10 1803+)"/>
+                            </ComboBox>
+
+                            <TextBlock Text="Blur Opacity:" Margin="0,10,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.BlurOpacity}"
+                                        Minimum="0" Maximum="255" Width="200"/>
+                                <TextBlock Text="{Binding Settings.BlurOpacity, StringFormat={}{0}}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="40"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Blur Tint Color:" Margin="0,10,0,5"/>
+                            <controls:ColorPickerButton SelectedColor="{Binding Settings.BlurTintColor}"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Visual Section -->
+                    <TextBlock Text="Visual Style" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Background Color:" Margin="0,0,0,5"/>
+                            <controls:ColorPickerButton SelectedColor="{Binding Settings.BackgroundColor}"/>
+
+                            <TextBlock Text="Background Opacity:" Margin="0,10,0,5"/>
+                            <TextBlock Text="(Lower values show more blur)" FontSize="10" Foreground="Gray" Margin="0,0,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.BackgroundOpacity}"
+                                        Minimum="0" Maximum="255" Width="200"/>
+                                <TextBlock Text="{Binding Settings.BackgroundOpacity, StringFormat={}{0}}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="40"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Border Color:" Margin="0,10,0,5"/>
+                            <controls:ColorPickerButton SelectedColor="{Binding Settings.BorderColor}"/>
+
+                            <TextBlock Text="Border Thickness:" Margin="0,10,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.BorderThickness}"
+                                        Minimum="0" Maximum="5" Width="200"
+                                        TickFrequency="1" IsSnapToTickEnabled="True"/>
+                                <TextBlock Text="{Binding Settings.BorderThickness, StringFormat={}{0} px}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="40"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Corner Radius:" Margin="0,10,0,5"/>
+                            <TextBlock Text="(Set to 0 for best blur effect)" FontSize="10" Foreground="Gray" Margin="0,0,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.CornerRadius}"
+                                        Minimum="0" Maximum="32" Width="200"
+                                        TickFrequency="4" IsSnapToTickEnabled="False"/>
+                                <TextBlock Text="{Binding Settings.CornerRadius, StringFormat={}{0} px}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="40"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Preview Button -->
+                    <Button Content="Preview Notification"
+                           Command="{Binding PreviewNotificationCommand}"
+                           HorizontalAlignment="Left"
+                           Padding="15,8"
+                           Margin="0,10,0,0"/>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+    </TabControl>
+</UserControl>

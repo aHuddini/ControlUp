@@ -1,0 +1,43 @@
+<Project Sdk="Microsoft.NET.Sdk">
+    <PropertyGroup>
+        <OutputType>Library</OutputType>
+        <TargetFramework>net4.6.2</TargetFramework>
+        <UseWPF>true</UseWPF>
+        <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+        <RootNamespace>ControlUp</RootNamespace>
+        <AssemblyName>ControlUp</AssemblyName>
+        <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+        <DebugType>portable</DebugType>
+        <PlatformTarget>AnyCPU</PlatformTarget>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|AnyCPU'">
+        <DebugType>portable</DebugType>
+        <PlatformTarget>AnyCPU</PlatformTarget>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="PlayniteSDK" Version="6.11.0.0" PrivateAssets="none" />
+        <PackageReference Include="Microsoft.CSharp" Version="4.7.0" PrivateAssets="none" />
+        <PackageReference Include="MaterialDesignThemes" Version="4.7.0" />
+        <PackageReference Include="MaterialDesignColors" Version="2.1.0" />
+    </ItemGroup>
+    <ItemGroup>
+        <Reference Include="System.Windows.Forms" />
+        <Reference Include="System.Drawing" />
+    </ItemGroup>
+    <ItemGroup>
+        <None Include="extension.yaml">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Include="icon.png">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+        <None Include="LICENSE">
+            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+</Project>
