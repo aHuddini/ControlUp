@@ -13,9 +13,6 @@ using System.Windows.Threading;
 
 namespace ControlUp
 {
-    /// <summary>
-    /// ControlUp - Shows a popup when a controller is connected, allowing user to switch to fullscreen mode.
-    /// </summary>
     public class ControlUpPlugin : GenericPlugin
     {
         private static readonly ILogger Logger = LogManager.GetLogger();

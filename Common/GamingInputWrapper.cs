@@ -1,11 +1,9 @@
 using System;
-using System.Linq;
+using System.Collections.Generic;
 
 namespace ControlUp.Common
 {
-    /// <summary>
-    /// Wrapper for Windows.Gaming.Input API to detect Xbox and other controllers (including Bluetooth)
-    /// </summary>
+    /// <summary>Windows.Gaming.Input API wrapper for Bluetooth controller detection.</summary>
     public static class GamingInputWrapper
     {
         private static dynamic _gamepadClass;
@@ -15,7 +13,6 @@ namespace ControlUp.Common
         {
             try
             {
-                // Try different assembly names for Windows.Gaming.Input
                 string[] assemblyNames = new[]
                 {
                     "Windows.Gaming.Input, Version=255.255.255.255, Culture=neutral, PublicKeyToken=0000000000000000, processorArchitecture=MSIL",
@@ -34,159 +31,70 @@ namespace ControlUp.Common
                             _gamepadsProperty = _gamepadClass?.GetProperty("Gamepads");
                             if (_gamepadClass != null && _gamepadsProperty != null)
                             {
-                                Console.WriteLine($"ControlUp: Successfully loaded Windows.Gaming.Input using {assemblyName}");
                                 break;
                             }
                         }
                     }
                     catch
                     {
-                        // Try next assembly name
                         continue;
                     }
                 }
-
-                if (_gamepadClass == null || _gamepadsProperty == null)
-                {
-                    Console.WriteLine("ControlUp: Windows.Gaming.Input not available on this system");
-                }
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"ControlUp: Error initializing Windows.Gaming.Input: {ex.Message}");
                 _gamepadClass = null;
                 _gamepadsProperty = null;
             }
         }
 
-        /// <summary>
-        /// Checks if any game controller is currently connected via Windows.Gaming.Input
-        /// </summary>
         public static bool IsControllerConnected()
         {
             try
             {
-                // First check if Windows.Gaming.Input is available
                 if (_gamepadClass == null || _gamepadsProperty == null)
-                {
-                    Console.WriteLine("ControlUp: Windows.Gaming.Input not available");
                     return false;
-                }
 
-                // Get the gamepads collection
-                var gamepads = (System.Collections.Generic.IReadOnlyList<dynamic>)_gamepadsProperty.GetValue(null);
-
-                if (gamepads != null && gamepads.Count > 0)
-                {
-                    Console.WriteLine($"ControlUp: Found {gamepads.Count} gamepad(s) via Windows.Gaming.Input");
-                    return true;
-                }
-                else
-                {
-                    Console.WriteLine("ControlUp: No gamepads found via Windows.Gaming.Input");
-                    return false;
-                }
+                var gamepads = (IReadOnlyList<dynamic>)_gamepadsProperty.GetValue(null);
+                return gamepads != null && gamepads.Count > 0;
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"ControlUp: Error accessing Windows.Gaming.Input: {ex.Message}");
                 return false;
             }
         }
 
-        /// <summary>
-        /// Advanced Xbox controller detection using multiple methods
-        /// </summary>
         public static bool IsXboxControllerConnected()
         {
-            // First try Windows.Gaming.Input (most reliable)
             if (IsControllerConnected())
-            {
                 return true;
-            }
 
-            // Fallback: Try Windows.Devices.Enumeration for gaming devices
+            // Fallback: Check HID devices for Xbox patterns
             try
             {
-                // Use reflection to access Windows.Devices.Enumeration
-                var devicesAssembly = System.Reflection.Assembly.Load("System.Runtime.WindowsRuntime, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089");
-                if (devicesAssembly != null)
-                {
-                    var deviceInformationType = devicesAssembly.GetType("Windows.Devices.Enumeration.DeviceInformation");
-                    if (deviceInformationType != null)
-                    {
-                        // Try to find devices with gaming interface class
-                        var findAllAsyncMethod = deviceInformationType.GetMethod("FindAllAsync", new[] { typeof(string) });
-                        if (findAllAsyncMethod != null)
-                        {
-                            // AQS query for gaming devices
-                            string aqsFilter = "System.Devices.InterfaceClassGuid:=\"{4d1e55b2-f16f-11cf-88cb-001111000030}\" AND System.Devices.InterfaceEnabled:=System.StructuredQueryType.Boolean#True";
-
-                            try
-                            {
-                                var task = (dynamic)findAllAsyncMethod.Invoke(null, new object[] { aqsFilter });
-                                if (task != null)
-                                {
-                                    // This is async, but we'll try to get the result synchronously
-                                    var result = task.GetAwaiter().GetResult();
-                                    if (result != null && result.Count > 0)
-                                    {
-                                        Console.WriteLine($"ControlUp: Found {result.Count} gaming devices via Windows.Devices.Enumeration");
-                                        return true;
-                                    }
-                                }
-                            }
-                            catch (Exception ex)
-                            {
-                                Console.WriteLine($"ControlUp: Error enumerating gaming devices: {ex.Message}");
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"ControlUp: Windows.Devices.Enumeration not available: {ex.Message}");
-            }
-
-            // Final fallback: Check for known Xbox Bluetooth service UUIDs in HID devices
-            try
-            {
-                // Xbox controllers use specific Bluetooth service UUIDs
-                // The HID Service UUID (00001812-0000-1000-8000-00805f9b34fb) is common
-                // But Xbox controllers also advertise additional services
-
-                // This is a simplified check - look for devices that are likely Xbox controllers
                 var hidDevices = DirectInputWrapper.GetConnectedControllers();
                 foreach (var device in hidDevices)
                 {
                     string deviceLower = device.ToLowerInvariant();
-
-                    // Look for Xbox-specific patterns in device names or paths
                     if (deviceLower.Contains("xbox") ||
                         deviceLower.Contains("wireless") ||
-                        deviceLower.Contains("045e") || // Microsoft VID
-                        deviceLower.Contains("00001812")) // HID Service UUID
+                        deviceLower.Contains("045e"))  // Microsoft VID
                     {
-                        Console.WriteLine($"ControlUp: Found potential Xbox controller via HID enumeration: {device}");
                         return true;
                     }
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                Console.WriteLine($"ControlUp: Error checking HID devices for Xbox controllers: {ex.Message}");
+                // Ignore HID enumeration errors
             }
 
             return false;
         }
 
-        /// <summary>
-        /// Gets detailed information about connected controllers via Windows.Gaming.Input
-        /// </summary>
-        public static System.Collections.Generic.List<string> GetConnectedControllerInfo()
+        public static List<string> GetConnectedControllerInfo()
         {
-            var controllers = new System.Collections.Generic.List<string>();
+            var controllers = new List<string>();
 
             try
             {
@@ -196,7 +104,7 @@ namespace ControlUp.Common
                     return controllers;
                 }
 
-                var gamepads = (System.Collections.Generic.IReadOnlyList<dynamic>)_gamepadsProperty.GetValue(null);
+                var gamepads = (IReadOnlyList<dynamic>)_gamepadsProperty.GetValue(null);
 
                 if (gamepads != null && gamepads.Count > 0)
                 {
@@ -205,21 +113,7 @@ namespace ControlUp.Common
                         try
                         {
                             var gamepad = gamepads[i];
-
-                            // Try to get additional info if available
                             string controllerInfo = $"Xbox Gamepad {i + 1}";
-
-                            // Try to access properties like Id, IsWireless, etc.
-                            try
-                            {
-                                var idProperty = _gamepadClass.GetProperty("Id");
-                                if (idProperty != null)
-                                {
-                                    var id = idProperty.GetValue(gamepad);
-                                    controllerInfo += $" (ID: {id})";
-                                }
-                            }
-                            catch { }
 
                             try
                             {
@@ -234,9 +128,9 @@ namespace ControlUp.Common
 
                             controllers.Add(controllerInfo);
                         }
-                        catch (Exception ex)
+                        catch
                         {
-                            controllers.Add($"Xbox Gamepad {i + 1} (Error reading details: {ex.Message})");
+                            controllers.Add($"Xbox Gamepad {i + 1}");
                         }
                     }
                 }
@@ -247,7 +141,7 @@ namespace ControlUp.Common
             }
             catch (Exception ex)
             {
-                controllers.Add($"Error accessing Windows.Gaming.Input: {ex.Message}");
+                controllers.Add($"Error: {ex.Message}");
             }
 
             return controllers;

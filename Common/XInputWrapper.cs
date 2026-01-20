@@ -1,14 +1,10 @@
-using System;
 using System.Runtime.InteropServices;
 
 namespace ControlUp.Common
 {
-    /// <summary>
-    /// Wrapper for XInput API to detect Xbox controllers
-    /// </summary>
+    /// <summary>XInput API wrapper for Xbox controller detection.</summary>
     public static class XInputWrapper
     {
-        // XInput API imports
         [DllImport("xinput1_4.dll")]
         private static extern uint XInputGetState(uint dwUserIndex, ref XINPUT_STATE pState);
 
@@ -51,15 +47,15 @@ namespace ControlUp.Common
             public ushort wRightMotorSpeed;
         }
 
-        // XInput constants
+        // Constants
         private const uint XINPUT_DEVTYPE_GAMEPAD = 0x01;
         private const uint XINPUT_DEVSUBTYPE_GAMEPAD = 0x01;
         public const uint ERROR_SUCCESS = 0;
-        public const uint ERROR_EMPTY = 0x10D2;  // 4306
+        public const uint ERROR_EMPTY = 0x10D2;
         private const uint ERROR_DEVICE_NOT_CONNECTED = 1167;
         public const uint XUSER_INDEX_ANY = 0x000000FF;
 
-        // XInput button constants (public for dialog use)
+        // Button masks
         public const ushort XINPUT_GAMEPAD_DPAD_UP = 0x0001;
         public const ushort XINPUT_GAMEPAD_DPAD_DOWN = 0x0002;
         public const ushort XINPUT_GAMEPAD_DPAD_LEFT = 0x0004;
@@ -75,29 +71,18 @@ namespace ControlUp.Common
         public const ushort XINPUT_GAMEPAD_X = 0x4000;
         public const ushort XINPUT_GAMEPAD_Y = 0x8000;
 
-        /// <summary>
-        /// Public wrapper for XInputGetState for dialog use
-        /// </summary>
         public static uint GetState(uint dwUserIndex, ref XINPUT_STATE pState)
         {
             return XInputGetState(dwUserIndex, ref pState);
         }
 
-        /// <summary>
-        /// Checks if an Xbox controller is currently connected
-        /// </summary>
-        /// <returns>True if an Xbox controller is detected, false otherwise</returns>
         public static bool IsControllerConnected()
         {
-            // Check all possible controller slots (0-3)
             for (uint i = 0; i < 4; i++)
             {
                 XINPUT_STATE state = new XINPUT_STATE();
-                uint result = XInputGetState(i, ref state);
-
-                if (result == ERROR_SUCCESS)
+                if (XInputGetState(i, ref state) == ERROR_SUCCESS)
                 {
-                    // Also check if it's an Xbox controller
                     XINPUT_CAPABILITIES capabilities = new XINPUT_CAPABILITIES();
                     uint capResult = XInputGetCapabilities(i, 0, ref capabilities);
 
@@ -109,25 +94,16 @@ namespace ControlUp.Common
                     }
                 }
             }
-
             return false;
         }
 
-        /// <summary>
-        /// Checks if an Xbox controller is connected to a specific slot
-        /// </summary>
-        /// <param name="slot">Controller slot (0-3)</param>
-        /// <returns>True if a controller is connected to the specified slot</returns>
         public static bool IsControllerConnectedToSlot(uint slot)
         {
             if (slot >= 4) return false;
 
             XINPUT_STATE state = new XINPUT_STATE();
-            uint result = XInputGetState(slot, ref state);
-
-            if (result == ERROR_SUCCESS)
+            if (XInputGetState(slot, ref state) == ERROR_SUCCESS)
             {
-                // Also check if it's an Xbox controller
                 XINPUT_CAPABILITIES capabilities = new XINPUT_CAPABILITIES();
                 uint capResult = XInputGetCapabilities(slot, 0, ref capabilities);
 
@@ -138,7 +114,6 @@ namespace ControlUp.Common
                     return true;
                 }
             }
-
             return false;
         }
     }
