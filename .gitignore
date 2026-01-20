@@ -34,3 +34,4 @@ temp_test/
 .DS_Store
 Thumbs.db
 desktop.ini
+*.afdesign
