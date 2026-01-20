@@ -1,9 +1,11 @@
 # ControlUp
 
-![Version](https://img.shields.io/badge/version-1.0.1-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
-
 <p align="center">
   <img src="graphicassets/iconfonttitle.png" alt="ControlUp Icon" width="256" height="256">
+</p>
+
+<p align="center">
+  ![Version](https://img.shields.io/badge/version-1.0.1-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
 </p>
 
 A Playnite extension that detects game controller connections and gamepad hotkeys, displaying a customizable popup prompting users to switch to fullscreen mode.
