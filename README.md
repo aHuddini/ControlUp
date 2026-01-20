@@ -1,4 +1,4 @@
-# ControlUp Playnite Extension
+# ControlUp Playnite Extension [EXPERIMENTAL]
 <p align="center">
   <img src="graphicassets/iconfonttitle.png" alt="ControlUp Icon" width="256" height="256">
 </p>
