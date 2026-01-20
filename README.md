@@ -1,5 +1,4 @@
 # ControlUp
-
 <p align="center">
   <img src="graphicassets/iconfonttitle.png" alt="ControlUp Icon" width="256" height="256">
 </p>
