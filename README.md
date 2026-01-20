@@ -2,6 +2,10 @@
 
 A Playnite extension that detects when a game controller is connected and prompts the user to switch to fullscreen mode.
 
+<img width="548" height="440" alt="image" src="https://github.com/user-attachments/assets/09a615c7-a52d-49c2-a746-95148ff7b0dc" />
+
+*Currently Tested on an Xbox Series X USB/Wireless Controller*
+
 ## Features
 
 - **Controller Detection Popup**: When a controller is connected, a customizable popup appears asking if you want to switch to fullscreen mode
