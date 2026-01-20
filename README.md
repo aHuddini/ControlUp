@@ -5,7 +5,7 @@
 </p>
 
 <p align="center">
-  ![Version](https://img.shields.io/badge/version-1.0.1-blue.svg) ![License](https://img.shields.io/badge/license-MIT-green.svg)
+  <img src="https://img.shields.io/badge/version-1.0.1-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
 A Playnite extension that detects game controller connections and gamepad hotkeys, displaying a customizable popup prompting users to switch to fullscreen mode.
