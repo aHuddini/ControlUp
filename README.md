@@ -9,7 +9,8 @@ A Playnite extension that detects when a game controller is connected and prompt
 ## Features
 
 - **Controller Detection Popup**: When a controller is connected, a customizable popup appears asking if you want to switch to fullscreen mode
-- **Full Controller Support**: Navigate the popup using your controller - D-pad, thumbsticks, A to confirm, B to cancel
+- **Controller Navigation Support**: Navigate the popup using your controller - D-pad, thumbsticks, A to confirm, B to cancel
+- **Controller Hotkey Support**: Trigger request to go to fullscreen mode directly with controller button combinations (Start+RB, Start+LB, etc.)
 - **Multiple Detection Modes**:
   - USB/Wired Xbox controllers (XInput)
   - Bluetooth wireless controllers (Windows.Gaming.Input)
@@ -21,7 +22,7 @@ A Playnite extension that detects when a game controller is connected and prompt
   - Acrylic blur effect with tint color
   - Background color and opacity
   - Border styling and corner radius
-- **Live Preview**: Test your notification settings before saving
+- **Live Preview**: Test your notification UI settings before saving
 
 ## Installation
 
@@ -44,6 +45,13 @@ A Playnite extension that detects when a game controller is connected and prompt
 - **Enable Logging**: Turn on detailed logging for troubleshooting
 - **Detect Controllers**: Test button to see which controllers are currently connected
 
+### Hotkey Settings
+
+- **Enable Controller Hotkey**: Enable/disable controller hotkey to trigger fullscreen
+- **Hotkey Combination**: Choose button combination (Start+RB, Start+LB, Back+Start, Back+RB, Back+LB)
+- **Skip Popup on Hotkey**: Go directly to fullscreen without showing popup when hotkey is pressed
+- **Polling Interval**: How often to check for hotkey press (50-100ms recommended for responsiveness)
+
 ### Notification Settings
 
 - **Position**: Choose where the notification appears (Top Left/Center/Right, Center, Bottom Left/Center/Right)
@@ -53,29 +61,12 @@ A Playnite extension that detects when a game controller is connected and prompt
 - **Blur Effect**: Enable/disable acrylic blur, adjust opacity and tint color
 - **Visual Style**: Background color/opacity, border color/thickness, corner radius
 
-## How It Works
-
-1. The extension monitors for controller connections based on your settings
-2. When a new controller is detected (and you're in Desktop mode), a popup appears
-3. Use your controller or keyboard to select Yes or Cancel:
-   - **Controller**: D-pad/Thumbsticks to select, A to confirm, B to cancel
-   - **Keyboard**: Arrow keys to select, Enter/Space to confirm, Escape to cancel
-4. If you select Yes, Playnite switches to Fullscreen mode
-5. The popup auto-closes after the configured duration if no selection is made
-
 ## Requirements
 
 - Playnite 10 or later
 - Windows 10 or later (for acrylic blur effect)
 - Xbox controller or compatible gamepad
 
-## Technical Details
-
-- Built with .NET Framework 4.6.2
-- Uses Playnite SDK 6.11.0.0
-- XInput 1.4 for USB controller detection
-- Windows.Gaming.Input for Bluetooth controller detection
-- Windows Composition API for acrylic blur effects
 
 ## Development
 

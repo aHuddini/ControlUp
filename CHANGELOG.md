@@ -1,5 +1,20 @@
 # ControlUp Changelog
 
+## Version 1.0.1 (January 20, 2026)
+
+### Features
+- **Controller Hotkey Support**: Trigger fullscreen mode directly with controller button combinations
+  - Multiple hotkey combinations: Start+RB, Start+LB, Back+Start, Back+RB, Back+LB
+  - Background thread polling for responsive detection (50-100ms recommended)
+  - Option to skip popup and go directly to fullscreen
+  - Configurable polling interval (5-500ms)
+- **Enhanced Settings UI**: Added dedicated hotkey configuration section
+
+### Technical
+- Background thread implementation for responsive hotkey detection
+- XInput integration for button state monitoring
+- Improved performance with optimized polling intervals
+
 ## Version 1.0.0 (January 19, 2026)
 
 ### Features
