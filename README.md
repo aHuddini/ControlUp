@@ -1,6 +1,8 @@
 # ControlUp
 
-A Playnite extension that detects when a game controller is connected and prompts the user to switch to fullscreen mode.
+A Playnite extension that detects game controller connections and gamepad hotkeys, displaying a customizable popup prompting users to switch to fullscreen mode. 
+
+Includes the option to skip the pop-up to let the user directly switch to fullscreen.
 
 <img width="548" height="440" alt="image" src="https://github.com/user-attachments/assets/09a615c7-a52d-49c2-a746-95148ff7b0dc" />
 
