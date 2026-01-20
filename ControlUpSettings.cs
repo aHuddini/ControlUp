@@ -11,6 +11,7 @@ namespace ControlUp
         // === General Settings ===
         private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.UsbControllerConnected;
         private bool _enableLogging = false;
+        private bool _skipPopupOnConnection = false;
 
         public FullscreenTriggerMode FullscreenTriggerMode
         {
@@ -22,6 +23,59 @@ namespace ControlUp
         {
             get => _enableLogging;
             set => SetValue(ref _enableLogging, value);
+        }
+
+        /// <summary>
+        /// Skip popup and go straight to fullscreen when controller is connected
+        /// </summary>
+        public bool SkipPopupOnConnection
+        {
+            get => _skipPopupOnConnection;
+            set => SetValue(ref _skipPopupOnConnection, value);
+        }
+
+        // === Hotkey Settings ===
+        private bool _enableHotkey = true;
+        private ControllerHotkey _hotkeyCombo = ControllerHotkey.StartPlusRB;
+        private bool _skipPopupOnHotkey = false;
+
+        /// <summary>
+        /// Enable controller hotkey to trigger fullscreen switch
+        /// </summary>
+        public bool EnableHotkey
+        {
+            get => _enableHotkey;
+            set => SetValue(ref _enableHotkey, value);
+        }
+
+        /// <summary>
+        /// Controller button combination for hotkey
+        /// </summary>
+        public ControllerHotkey HotkeyCombo
+        {
+            get => _hotkeyCombo;
+            set => SetValue(ref _hotkeyCombo, value);
+        }
+
+        /// <summary>
+        /// Skip popup and go straight to fullscreen when hotkey is pressed
+        /// </summary>
+        public bool SkipPopupOnHotkey
+        {
+            get => _skipPopupOnHotkey;
+            set => SetValue(ref _skipPopupOnHotkey, value);
+        }
+
+        private int _hotkeyPollingIntervalMs = 70;
+
+        /// <summary>
+        /// Hotkey polling interval in milliseconds (5-500).
+        /// Lower = more responsive but uses more CPU. Default 70ms. Recommended: 50-100ms.
+        /// </summary>
+        public int HotkeyPollingIntervalMs
+        {
+            get => _hotkeyPollingIntervalMs;
+            set => SetValue(ref _hotkeyPollingIntervalMs, Math.Max(5, Math.Min(500, value)));
         }
 
         // === Notification Settings ===
@@ -246,5 +300,39 @@ namespace ControlUp
 
         [Description("Bottom Right")]
         BottomRight
+    }
+
+    public enum ControllerHotkey
+    {
+        [Description("Start + RB")]
+        StartPlusRB,
+
+        [Description("Start + LB")]
+        StartPlusLB,
+
+        [Description("Back + Start")]
+        BackPlusStart,
+
+        [Description("Back + RB")]
+        BackPlusRB,
+
+        [Description("Back + LB")]
+        BackPlusLB
+    }
+
+    /// <summary>
+    /// Identifies what triggered the fullscreen switch dialog
+    /// </summary>
+    public enum FullscreenTriggerSource
+    {
+        /// <summary>
+        /// Triggered by a new controller being connected
+        /// </summary>
+        Connection,
+
+        /// <summary>
+        /// Triggered by the user pressing the controller hotkey
+        /// </summary>
+        Hotkey
     }
 }

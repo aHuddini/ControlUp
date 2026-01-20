@@ -17,6 +17,7 @@ namespace ControlUp.Dialogs
 
         // Settings reference
         private readonly ControlUpSettings _settings;
+        private readonly FullscreenTriggerSource _triggerSource;
 
         // Auto-close timer
         private DispatcherTimer _autoCloseTimer;
@@ -66,16 +67,32 @@ namespace ControlUp.Dialogs
         }
 
         // Constructor with default settings
-        public ControllerDetectedDialog() : this(null) { }
+        public ControllerDetectedDialog() : this(null, FullscreenTriggerSource.Connection) { }
 
         // Constructor with settings
-        public ControllerDetectedDialog(ControlUpSettings settings)
+        public ControllerDetectedDialog(ControlUpSettings settings, FullscreenTriggerSource source = FullscreenTriggerSource.Connection)
         {
             _settings = settings ?? new ControlUpSettings();
+            _triggerSource = source;
             _remainingSeconds = _settings.NotificationDurationSeconds;
 
             InitializeComponent();
             ApplySettings();
+            ApplyTriggerSourceText();
+        }
+
+        private void ApplyTriggerSourceText()
+        {
+            if (_triggerSource == FullscreenTriggerSource.Hotkey)
+            {
+                TitleText.Text = "Hotkey Pressed";
+                MessageText.Text = "Fullscreen mode hotkey was pressed.";
+            }
+            else
+            {
+                TitleText.Text = "Controller Detected";
+                MessageText.Text = "A game controller has been connected.";
+            }
         }
 
         private void ApplySettings()

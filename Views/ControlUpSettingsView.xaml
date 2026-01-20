@@ -20,6 +20,11 @@
                 <x:Type TypeName="local:NotificationPosition" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        <ObjectDataProvider x:Key="ControllerHotkeys" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="local:ControllerHotkey" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
     </UserControl.Resources>
 
     <TabControl>
@@ -44,17 +49,61 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Controller Type -->
-                    <TextBlock Text="Controller Type to Detect:" FontWeight="SemiBold" Margin="0,10,0,5"/>
-                    <TextBlock Text="Choose which type of controller triggers the popup." FontSize="11" Foreground="Gray" Margin="0,0,0,10"/>
-                    <ComboBox ItemsSource="{Binding Source={StaticResource FullscreenTriggerModes}}"
-                             SelectedItem="{Binding Settings.FullscreenTriggerMode}"
-                             Margin="0,0,0,20"/>
+                    <!-- Connection Detection Section -->
+                    <TextBlock Text="Controller Connection Detection" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Controller Type to Detect:" Margin="0,0,0,5"/>
+                            <TextBlock Text="Choose which type of controller triggers the popup on connection." FontSize="11" Foreground="Gray" Margin="0,0,0,10"/>
+                            <ComboBox ItemsSource="{Binding Source={StaticResource FullscreenTriggerModes}}"
+                                     SelectedItem="{Binding Settings.FullscreenTriggerMode}"
+                                     Margin="0,0,0,10"/>
 
-                    <!-- Enable Logging -->
-                    <CheckBox Content="Enable detailed logging (for troubleshooting)"
-                             IsChecked="{Binding Settings.EnableLogging}"
-                             Margin="0,10,0,10"/>
+                            <CheckBox Content="Skip popup on connection (switch directly to fullscreen)"
+                                     IsChecked="{Binding Settings.SkipPopupOnConnection}"
+                                     Margin="0,10,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Hotkey Section -->
+                    <TextBlock Text="Controller Hotkey" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <CheckBox Content="Enable controller hotkey to trigger fullscreen"
+                                     IsChecked="{Binding Settings.EnableHotkey}"
+                                     Margin="0,0,0,10"/>
+
+                            <TextBlock Text="Hotkey Combination:" Margin="0,5,0,5"/>
+                            <TextBlock Text="Press this button combination to trigger the fullscreen popup." FontSize="11" Foreground="Gray" Margin="0,0,0,10"/>
+                            <ComboBox ItemsSource="{Binding Source={StaticResource ControllerHotkeys}}"
+                                     SelectedItem="{Binding Settings.HotkeyCombo}"
+                                     IsEnabled="{Binding Settings.EnableHotkey}"
+                                     Margin="0,0,0,10"/>
+
+                            <CheckBox Content="Skip popup on hotkey (switch directly to fullscreen)"
+                                     IsChecked="{Binding Settings.SkipPopupOnHotkey}"
+                                     IsEnabled="{Binding Settings.EnableHotkey}"
+                                     Margin="0,10,0,0"/>
+
+                            <TextBlock Text="Polling Interval:" Margin="0,15,0,5"/>
+                            <TextBlock Text="How often to check for hotkey press. Lower = more responsive. Recommended: 50-100ms." FontSize="11" Foreground="Gray" Margin="0,0,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.HotkeyPollingIntervalMs}"
+                                        Minimum="5" Maximum="500" Width="200"
+                                        TickFrequency="5" IsSnapToTickEnabled="True"
+                                        IsEnabled="{Binding Settings.EnableHotkey}"/>
+                                <TextBlock Text="{Binding Settings.HotkeyPollingIntervalMs, StringFormat={}{0} ms}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="60"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Logging Section -->
+                    <TextBlock Text="Logging" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <CheckBox Content="Enable detailed logging (for troubleshooting)"
+                                 IsChecked="{Binding Settings.EnableLogging}"/>
+                    </Border>
 
                     <!-- Controller Detection Section -->
                     <TextBlock Text="Test Controller Detection:" FontWeight="SemiBold" Margin="0,20,0,5"/>

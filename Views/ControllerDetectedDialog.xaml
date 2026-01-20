@@ -68,7 +68,8 @@
                            Foreground="White"
                            VerticalAlignment="Center"
                            Margin="0,0,14,0"/>
-                <TextBlock Text="Controller Detected"
+                <TextBlock x:Name="TitleText"
+                           Text="Controller Detected"
                            FontSize="26"
                            FontWeight="Bold"
                            Foreground="White"
@@ -76,7 +77,8 @@
             </StackPanel>
 
             <!-- Message -->
-            <TextBlock Grid.Row="1"
+            <TextBlock x:Name="MessageText"
+                       Grid.Row="1"
                        Text="A game controller has been connected."
                        FontSize="15"
                        Foreground="#B0B0B0"

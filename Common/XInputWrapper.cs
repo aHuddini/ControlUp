@@ -54,8 +54,10 @@ namespace ControlUp.Common
         // XInput constants
         private const uint XINPUT_DEVTYPE_GAMEPAD = 0x01;
         private const uint XINPUT_DEVSUBTYPE_GAMEPAD = 0x01;
-        private const uint ERROR_SUCCESS = 0;
+        public const uint ERROR_SUCCESS = 0;
+        public const uint ERROR_EMPTY = 0x10D2;  // 4306
         private const uint ERROR_DEVICE_NOT_CONNECTED = 1167;
+        public const uint XUSER_INDEX_ANY = 0x000000FF;
 
         // XInput button constants (public for dialog use)
         public const ushort XINPUT_GAMEPAD_DPAD_UP = 0x0001;
