@@ -17,27 +17,29 @@ namespace ControlUp
     {
         private static readonly ILogger Logger = LogManager.GetLogger();
 
-        // Monitoring - background thread for hotkey (responsive), timer for connection detection
+        // Monitoring
         private CancellationTokenSource _hotkeyCts;
         private Task _hotkeyTask;
         private DispatcherTimer _connectionTimer;
 
         // Controller state tracking
-        private bool _xinputConnected = false;
-        private bool _gamingInputConnected = false;
+        private bool _controllerWasConnected = false;
+        private string _lastControllerName = null;
 
-        // Prevent multiple popups
+        // Popup state
         private bool _popupShowing = false;
-        private DateTime _lastPopupTime = DateTime.MinValue;
-        private const int POPUP_COOLDOWN_SECONDS = 30;
 
         // Hotkey tracking
-        private volatile bool _hotkeyWasTriggered = false;  // Prevents re-triggering while held
+        private volatile bool _hotkeyWasTriggered = false;
 
         // Components
         private FileLogger _fileLogger;
 
         public ControlUpSettingsViewModel Settings { get; private set; }
+
+        // Track settings for change detection
+        private FullscreenTriggerMode _lastTriggerMode;
+        private bool _lastEnableHotkey;
 
         public ControlUpPlugin(IPlayniteAPI playniteAPI) : base(playniteAPI)
         {
@@ -50,14 +52,10 @@ namespace ControlUp
             }
             catch
             {
-                // File logger initialization failed - continue without it
+                // Continue without file logger
             }
 
-            Properties = new GenericPluginProperties
-            {
-                HasSettings = true
-            };
-
+            Properties = new GenericPluginProperties { HasSettings = true };
             Settings = new ControlUpSettingsViewModel(this, PlayniteApi);
 
             AddSettingsSupport(new AddSettingsSupportArgs
@@ -72,141 +70,126 @@ namespace ControlUp
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             var currentMode = PlayniteApi.ApplicationInfo.Mode;
-            Logger.Info($"ControlUp: Application started - Mode: {currentMode}");
+            var triggerMode = Settings.Settings.FullscreenTriggerMode;
+
             _fileLogger?.Info($"=== Application Started - Mode: {currentMode} ===");
-            _fileLogger?.Info($"Settings: TriggerMode={Settings.Settings.FullscreenTriggerMode}, Hotkey={Settings.Settings.EnableHotkey}, HotkeyCombo={Settings.Settings.HotkeyCombo}");
+            _fileLogger?.Info($"Settings: TriggerMode={triggerMode}, Hotkey={Settings.Settings.EnableHotkey}");
 
-            // Check initial controller state
-            _xinputConnected = XInputWrapper.IsControllerConnected();
-            _gamingInputConnected = GamingInputWrapper.IsControllerConnected();
-
-            _fileLogger?.Info($"Initial state - XInput: {_xinputConnected}, GamingInput: {_gamingInputConnected}");
-
-            // If already in fullscreen, no need to monitor or show popup
             if (currentMode == ApplicationMode.Fullscreen)
             {
                 _fileLogger?.Info("Already in fullscreen mode, monitoring disabled");
                 return;
             }
 
-            // Check if we need monitoring at all
-            bool needsConnectionMonitoring = Settings.Settings.FullscreenTriggerMode != FullscreenTriggerMode.Disabled;
-            bool needsHotkeyMonitoring = Settings.Settings.EnableHotkey;
+            // Check if this is a startup-only mode
+            bool isStartupMode = triggerMode == FullscreenTriggerMode.XInputControllerOnStartup ||
+                                  triggerMode == FullscreenTriggerMode.AnyControllerOnStartup;
 
-            if (!needsConnectionMonitoring && !needsHotkeyMonitoring)
-            {
-                _fileLogger?.Info("Both connection detection and hotkey disabled, monitoring not started");
-                return;
-            }
+            // Check initial controller state
+            var controllerState = GetControllerStateForMode(triggerMode);
+            _fileLogger?.Info($"Initial state: Connected={controllerState.IsConnected}, Name={controllerState.Name}");
 
-            // For "OnStartup" modes, show popup immediately if controller is already connected
-            var triggerMode = Settings.Settings.FullscreenTriggerMode;
-            if (triggerMode == FullscreenTriggerMode.UsbControllerOnStartup && _xinputConnected)
+            if (isStartupMode)
             {
-                _fileLogger?.Info("USB controller detected on startup, triggering fullscreen");
-                // Delay slightly to let Playnite fully load
-                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-                timer.Tick += (s, e) =>
+                // Startup modes: only trigger at startup, then just monitor hotkeys
+                _controllerWasConnected = controllerState.IsConnected;
+                _lastControllerName = controllerState.Name;
+
+                if (_controllerWasConnected)
                 {
-                    timer.Stop();
-                    TriggerFullscreenSwitch(FullscreenTriggerSource.Connection);
-                };
-                timer.Start();
-                // Still start monitoring for hotkeys if enabled
-                if (needsHotkeyMonitoring)
-                {
-                    StartMonitoring();
+                    _fileLogger?.Info($"Startup mode: Controller detected, triggering fullscreen");
+                    DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, _lastControllerName));
                 }
-                return;
-            }
-            else if (triggerMode == FullscreenTriggerMode.BluetoothControllerOnStartup && _gamingInputConnected)
-            {
-                _fileLogger?.Info("Bluetooth controller detected on startup, triggering fullscreen");
-                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
-                timer.Tick += (s, e) =>
-                {
-                    timer.Stop();
-                    TriggerFullscreenSwitch(FullscreenTriggerSource.Connection);
-                };
-                timer.Start();
-                // Still start monitoring for hotkeys if enabled
-                if (needsHotkeyMonitoring)
-                {
-                    StartMonitoring();
-                }
+
+                // Start hotkey monitoring if enabled (no connection monitoring for startup modes)
+                if (Settings.Settings.EnableHotkey)
+                    StartHotkeyMonitoring();
+
+                // Store current settings for change detection
+                _lastTriggerMode = triggerMode;
+                _lastEnableHotkey = Settings.Settings.EnableHotkey;
                 return;
             }
 
-            // Start monitoring for connections and/or hotkeys
-            if (needsConnectionMonitoring || needsHotkeyMonitoring)
+            // Runtime modes (XInputController, AnyController):
+            // If controller already connected at startup, trigger immediately
+            if (controllerState.IsConnected)
             {
-                StartMonitoring();
+                _fileLogger?.Info($"Runtime mode: Controller already connected at startup, triggering fullscreen");
+                _controllerWasConnected = true;
+                _lastControllerName = controllerState.Name;
+                DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, controllerState.Name));
             }
             else
             {
-                _fileLogger?.Info("Startup mode but no controller detected at startup, hotkeys disabled");
+                // No controller connected - start monitoring for connections
+                _controllerWasConnected = false;
+                _lastControllerName = null;
+                _fileLogger?.Info($"Runtime mode: No controller at startup, will monitor for connections");
             }
+
+            // Start monitoring (hotkeys + connection detection for runtime modes)
+            StartMonitoring();
+
+            // Store current settings for change detection
+            _lastTriggerMode = triggerMode;
+            _lastEnableHotkey = Settings.Settings.EnableHotkey;
         }
 
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
         {
-            Logger.Info("ControlUp: Application stopped");
             _fileLogger?.Info("=== Application Stopped ===");
             StopMonitoring();
         }
 
-        public override ISettings GetSettings(bool firstRunSettings)
-        {
-            return Settings;
-        }
+        public override ISettings GetSettings(bool firstRunSettings) => Settings;
 
         public override System.Windows.Controls.UserControl GetSettingsView(bool firstRunView)
         {
             return new ControlUpSettingsView(Settings);
         }
 
+        private ControllerDetector.ControllerState GetControllerStateForMode(FullscreenTriggerMode mode)
+        {
+            bool xinputOnly = mode == FullscreenTriggerMode.XInputController ||
+                              mode == FullscreenTriggerMode.XInputControllerOnStartup;
+
+            return ControllerDetector.GetControllerState(xinputOnly);
+        }
+
         private void StartMonitoring()
         {
-            // Background thread for hotkey detection - much more responsive than DispatcherTimer
             if (Settings.Settings.EnableHotkey)
-            {
-                var interval = Settings.Settings.HotkeyPollingIntervalMs;
-                _hotkeyCts = new CancellationTokenSource();
-                _hotkeyTask = Task.Run(() => HotkeyPollingLoop(interval, _hotkeyCts.Token));
-                _fileLogger?.Info($"Started hotkey monitoring on background thread ({interval}ms interval)");
-            }
+                StartHotkeyMonitoring();
 
-            // Slower timer for connection detection (500ms = sufficient for detecting plugs)
             var triggerMode = Settings.Settings.FullscreenTriggerMode;
-            bool needsConnectionMonitoring = triggerMode == FullscreenTriggerMode.UsbControllerConnected ||
-                                              triggerMode == FullscreenTriggerMode.BluetoothControllerConnected ||
-                                              triggerMode == FullscreenTriggerMode.AnyControllerConnected;
+            bool needsConnectionMonitoring = triggerMode == FullscreenTriggerMode.XInputController ||
+                                              triggerMode == FullscreenTriggerMode.AnyController;
 
             if (needsConnectionMonitoring)
             {
-                _connectionTimer = new DispatcherTimer
-                {
-                    Interval = TimeSpan.FromMilliseconds(500)
-                };
+                var interval = Settings.Settings.HotkeyPollingIntervalMs;
+                _connectionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(interval) };
                 _connectionTimer.Tick += OnConnectionTimerTick;
                 _connectionTimer.Start();
-                _fileLogger?.Info("Started connection monitoring (500ms interval)");
+                _fileLogger?.Info($"Started connection monitoring ({interval}ms interval)");
             }
+        }
 
-            Logger.Info("ControlUp: Started controller monitoring");
+        private void StartHotkeyMonitoring()
+        {
+            var interval = Settings.Settings.HotkeyPollingIntervalMs;
+            _hotkeyCts = new CancellationTokenSource();
+            _hotkeyTask = Task.Run(() => HotkeyPollingLoop(interval, _hotkeyCts.Token));
+            _fileLogger?.Info($"Started hotkey monitoring ({interval}ms interval)");
         }
 
         private void StopMonitoring()
         {
-            // Stop hotkey background thread
             if (_hotkeyCts != null)
             {
                 _hotkeyCts.Cancel();
-                try
-                {
-                    _hotkeyTask?.Wait(500);  // Wait up to 500ms for clean shutdown
-                }
-                catch { }
+                try { _hotkeyTask?.Wait(500); } catch { }
                 _hotkeyCts.Dispose();
                 _hotkeyCts = null;
                 _hotkeyTask = null;
@@ -219,72 +202,85 @@ namespace ControlUp
                 _connectionTimer = null;
             }
 
-            Logger.Info("ControlUp: Stopped monitoring");
             _fileLogger?.Info("Stopped monitoring");
         }
 
         private void HotkeyPollingLoop(int intervalMs, CancellationToken token)
         {
-            uint lastPacketNumber = 0;
+            // Initialize SDL for hotkey detection
+            bool sdlInitialized = false;
+            try
+            {
+                sdlInitialized = SdlControllerWrapper.Initialize();
+            }
+            catch { }
 
             while (!token.IsCancellationRequested)
             {
                 try
                 {
-                    // Don't check if already in fullscreen or popup is showing
-                    if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen ||
-                        _popupShowing)
+                    if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing)
                     {
                         Thread.Sleep(intervalMs);
                         continue;
                     }
 
-                    // Check all controller slots (0-3) for input
-                    ushort buttons = 0;
-                    bool hasController = false;
-                    uint currentPacket = 0;
+                    bool hotkeyPressed = false;
+                    string controllerName = null;
+
+                    // Check XInput controllers first
+                    ushort xinputButtons = 0;
+                    bool hasXInputController = false;
 
                     for (uint slot = 0; slot < 4; slot++)
                     {
                         XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
                         if (XInputWrapper.GetState(slot, ref state) == XInputWrapper.ERROR_SUCCESS)
                         {
-                            hasController = true;
-                            buttons |= state.Gamepad.wButtons;
-                            currentPacket = Math.Max(currentPacket, state.dwPacketNumber);
+                            hasXInputController = true;
+                            xinputButtons |= state.Gamepad.wButtons;
                         }
                     }
 
-                    // Skip if no controller or no state change (optimization)
-                    if (!hasController)
+                    if (hasXInputController)
                     {
-                        _hotkeyWasTriggered = false;
-                        Thread.Sleep(intervalMs);
-                        continue;
+                        hotkeyPressed = IsHotkeyPressed(xinputButtons, Settings.Settings.HotkeyCombo);
+                        if (hotkeyPressed)
+                        {
+                            controllerName = XInputWrapper.GetControllerName();
+                        }
                     }
 
-                    // Check hotkey combo
-                    bool hotkeyPressed = IsHotkeyPressed(buttons, Settings.Settings.HotkeyCombo);
+                    // Check SDL if XInput didn't find the hotkey (for non-XInput controllers like DualSense)
+                    // or if using Guide button hotkeys (XInput doesn't expose Guide)
+                    if (!hotkeyPressed && sdlInitialized)
+                    {
+                        var sdlReading = SdlControllerWrapper.GetCurrentReading();
+                        if (sdlReading.IsValid)
+                        {
+                            hotkeyPressed = IsSdlHotkeyPressed(sdlReading.Buttons, Settings.Settings.HotkeyCombo);
+                            if (hotkeyPressed)
+                            {
+                                controllerName = SdlControllerWrapper.GetControllerName() ?? "Controller";
+                            }
+                        }
+                    }
 
-                    // Reset trigger flag when combo is released
                     if (!hotkeyPressed)
                     {
                         _hotkeyWasTriggered = false;
                     }
-                    // Trigger when combo is pressed and hasn't been triggered yet
-                    else if (hotkeyPressed && !_hotkeyWasTriggered)
+                    else if (!_hotkeyWasTriggered)
                     {
                         _hotkeyWasTriggered = true;
-                        _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} pressed, triggering fullscreen");
+                        _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} pressed (Controller: {controllerName})");
 
-                        // Dispatch to UI thread
+                        string finalName = controllerName;
                         Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                         {
-                            TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey);
+                            TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, finalName);
                         }));
                     }
-
-                    lastPacketNumber = currentPacket;
                 }
                 catch (Exception ex)
                 {
@@ -297,80 +293,55 @@ namespace ControlUp
 
         private void OnConnectionTimerTick(object sender, EventArgs e)
         {
-            // Don't monitor if already in fullscreen
             if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen)
                 return;
 
-            // Don't check connection state if popup is showing or we're in cooldown
             if (_popupShowing)
+            {
+                // Don't log every tick, this would spam
                 return;
-
-            if ((DateTime.Now - _lastPopupTime).TotalSeconds < POPUP_COOLDOWN_SECONDS)
-                return;
+            }
 
             CheckControllerState();
         }
+
+        // For verbose debugging - track last logged state to avoid spam
+        private static DateTime _lastVerboseLog = DateTime.MinValue;
 
         private void CheckControllerState()
         {
             var triggerMode = Settings.Settings.FullscreenTriggerMode;
 
-            // Only runtime connection modes should trigger here
-            // Startup modes (UsbControllerOnStartup, BluetoothControllerOnStartup) are handled
-            // only at application start and should NOT respond to runtime connections
+            // Skip startup modes - they only check at startup
             if (triggerMode == FullscreenTriggerMode.Disabled ||
-                triggerMode == FullscreenTriggerMode.UsbControllerOnStartup ||
-                triggerMode == FullscreenTriggerMode.BluetoothControllerOnStartup)
+                triggerMode == FullscreenTriggerMode.XInputControllerOnStartup ||
+                triggerMode == FullscreenTriggerMode.AnyControllerOnStartup)
             {
                 return;
             }
 
-            bool xinputNow = XInputWrapper.IsControllerConnected();
-            bool gamingInputNow = GamingInputWrapper.IsControllerConnected();
+            var state = GetControllerStateForMode(triggerMode);
 
-            bool shouldShowPopup = false;
-            string controllerType = "";
-
-            // Check for NEW connections based on trigger mode (runtime modes only)
-            switch (triggerMode)
+            // Verbose logging every 5 seconds for debugging
+            if (Settings.Settings.EnableLogging && (DateTime.Now - _lastVerboseLog).TotalSeconds >= 5)
             {
-                case FullscreenTriggerMode.UsbControllerConnected:
-                    // USB/XInput controller newly connected
-                    if (xinputNow && !_xinputConnected)
-                    {
-                        shouldShowPopup = true;
-                        controllerType = "USB/XInput";
-                    }
-                    break;
-
-                case FullscreenTriggerMode.BluetoothControllerConnected:
-                    // Bluetooth/GamingInput controller newly connected
-                    if (gamingInputNow && !_gamingInputConnected)
-                    {
-                        shouldShowPopup = true;
-                        controllerType = "Bluetooth";
-                    }
-                    break;
-
-                case FullscreenTriggerMode.AnyControllerConnected:
-                    // Any controller newly connected
-                    if ((xinputNow && !_xinputConnected) || (gamingInputNow && !_gamingInputConnected))
-                    {
-                        shouldShowPopup = true;
-                        controllerType = xinputNow ? "USB/XInput" : "Bluetooth";
-                    }
-                    break;
+                _lastVerboseLog = DateTime.Now;
+                _fileLogger?.Info($"[Poll] Connected={state.IsConnected}, Name={state.Name}, Source={state.Source}, WasConnected={_controllerWasConnected}");
             }
 
-            // Update tracked state
-            _xinputConnected = xinputNow;
-            _gamingInputConnected = gamingInputNow;
-
-            // Trigger fullscreen switch if needed
-            if (shouldShowPopup)
+            // Detect NEW connection
+            if (state.IsConnected && !_controllerWasConnected)
             {
-                _fileLogger?.Info($"New {controllerType} controller detected, triggering fullscreen");
-                TriggerFullscreenSwitch(FullscreenTriggerSource.Connection);
+                _fileLogger?.Info($"New controller detected: {state.Name} (Source: {state.Source})");
+                _controllerWasConnected = true;
+                _lastControllerName = state.Name;
+                TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, state.Name);
+            }
+            else if (!state.IsConnected && _controllerWasConnected)
+            {
+                _fileLogger?.Info("Controller disconnected - ready for reconnection");
+                _controllerWasConnected = false;
+                _lastControllerName = null;
             }
         }
 
@@ -393,15 +364,68 @@ namespace ControlUp
                 case ControllerHotkey.BackPlusLB:
                     return (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0 &&
                            (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
+                // Guide button hotkeys - XInput doesn't expose Guide, always return false
+                case ControllerHotkey.GuidePlusStart:
+                case ControllerHotkey.GuidePlusBack:
+                case ControllerHotkey.GuidePlusRB:
+                case ControllerHotkey.GuidePlusLB:
+                    return false;
                 default:
                     return false;
             }
         }
 
-        private void TriggerFullscreenSwitch(FullscreenTriggerSource source)
+        private bool IsSdlHotkeyPressed(SdlControllerWrapper.SdlButtons buttons, ControllerHotkey hotkey)
         {
+            switch (hotkey)
+            {
+                case ControllerHotkey.StartPlusRB:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
+                case ControllerHotkey.StartPlusLB:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
+                case ControllerHotkey.BackPlusStart:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
+                case ControllerHotkey.BackPlusRB:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
+                case ControllerHotkey.BackPlusLB:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
+                case ControllerHotkey.GuidePlusStart:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
+                case ControllerHotkey.GuidePlusBack:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.Back) != 0;
+                case ControllerHotkey.GuidePlusRB:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
+                case ControllerHotkey.GuidePlusLB:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
+                default:
+                    return false;
+            }
+        }
+
+        private void DelayedTrigger(int delayMs, Action action)
+        {
+            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(delayMs) };
+            timer.Tick += (s, e) =>
+            {
+                timer.Stop();
+                action();
+            };
+            timer.Start();
+        }
+
+        private void TriggerFullscreenSwitch(FullscreenTriggerSource source, string controllerName)
+        {
+            _fileLogger?.Info($"TriggerFullscreenSwitch called: source={source}, controller={controllerName}");
             _popupShowing = true;
-            _lastPopupTime = DateTime.Now;
 
             try
             {
@@ -411,15 +435,14 @@ namespace ControlUp
 
                 if (skipPopup)
                 {
-                    _fileLogger?.Info($"Skipping popup (source: {source}), switching directly to fullscreen");
+                    _fileLogger?.Info($"Skipping popup (source: {source}), switching directly");
                     Application.Current.Dispatcher.Invoke(() => SwitchToFullscreen());
                 }
                 else
                 {
-                    // Show popup
                     Application.Current.Dispatcher.Invoke(() =>
                     {
-                        var dialog = new ControllerDetectedDialog(Settings.Settings, source);
+                        var dialog = new ControllerDetectedDialog(Settings.Settings, source, controllerName);
                         var result = dialog.ShowDialog();
 
                         if (result == true && dialog.UserSelectedYes)
@@ -429,7 +452,7 @@ namespace ControlUp
                         }
                         else
                         {
-                            _fileLogger?.Info("User selected Cancel or dialog timed out");
+                            _fileLogger?.Info("User cancelled or dialog timed out");
                         }
                     });
                 }
@@ -442,6 +465,7 @@ namespace ControlUp
             finally
             {
                 _popupShowing = false;
+                _fileLogger?.Info("Popup closed, _popupShowing = false");
             }
         }
 
@@ -451,19 +475,16 @@ namespace ControlUp
             {
                 _fileLogger?.Info("Switching to fullscreen mode");
 
-                // Try reflection method first
                 var mainViewType = PlayniteApi.MainView.GetType();
                 var switchMethod = mainViewType.GetMethod("SwitchToFullscreenMode",
-                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+                    BindingFlags.Instance | BindingFlags.Public);
 
                 if (switchMethod != null)
                 {
-                    _fileLogger?.Info("Using SwitchToFullscreenMode via reflection");
                     switchMethod.Invoke(PlayniteApi.MainView, null);
                 }
                 else
                 {
-                    // Fallback: Send F11 key
                     _fileLogger?.Info("SwitchToFullscreenMode not found, sending F11");
                     SendF11Key();
                 }
@@ -479,14 +500,79 @@ namespace ControlUp
         private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
 
         private const byte VK_F11 = 0x7A;
-        private const uint KEYEVENTF_KEYDOWN = 0x0000;
-        private const uint KEYEVENTF_KEYUP = 0x0002;
 
         private void SendF11Key()
         {
-            keybd_event(VK_F11, 0, KEYEVENTF_KEYDOWN, UIntPtr.Zero);
-            System.Threading.Thread.Sleep(50);
-            keybd_event(VK_F11, 0, KEYEVENTF_KEYUP, UIntPtr.Zero);
+            keybd_event(VK_F11, 0, 0, UIntPtr.Zero);
+            Thread.Sleep(50);
+            keybd_event(VK_F11, 0, 2, UIntPtr.Zero);
+        }
+
+        /// <summary>
+        /// Called after settings are saved to restart monitoring if needed.
+        /// </summary>
+        public void OnSettingsChanged()
+        {
+            var currentMode = PlayniteApi.ApplicationInfo.Mode;
+            if (currentMode == ApplicationMode.Fullscreen)
+            {
+                _fileLogger?.Info("Settings changed but in fullscreen mode, ignoring");
+                return;
+            }
+
+            var newTriggerMode = Settings.Settings.FullscreenTriggerMode;
+            var newEnableHotkey = Settings.Settings.EnableHotkey;
+
+            bool modeChanged = newTriggerMode != _lastTriggerMode;
+            bool hotkeyChanged = newEnableHotkey != _lastEnableHotkey;
+
+            if (!modeChanged && !hotkeyChanged)
+            {
+                _fileLogger?.Info("Settings changed but trigger mode and hotkey unchanged");
+                return;
+            }
+
+            _fileLogger?.Info($"Settings changed: TriggerMode {_lastTriggerMode} -> {newTriggerMode}, Hotkey {_lastEnableHotkey} -> {newEnableHotkey}");
+
+            // Stop all existing monitoring
+            StopMonitoring();
+
+            // Reset state
+            _controllerWasConnected = false;
+            _lastControllerName = null;
+
+            // Update tracking
+            _lastTriggerMode = newTriggerMode;
+            _lastEnableHotkey = newEnableHotkey;
+
+            // Restart monitoring based on new settings
+            if (newTriggerMode == FullscreenTriggerMode.Disabled)
+            {
+                // Only start hotkey monitoring if enabled
+                if (newEnableHotkey)
+                    StartHotkeyMonitoring();
+                return;
+            }
+
+            bool isStartupMode = newTriggerMode == FullscreenTriggerMode.XInputControllerOnStartup ||
+                                  newTriggerMode == FullscreenTriggerMode.AnyControllerOnStartup;
+
+            if (isStartupMode)
+            {
+                // Startup modes: only hotkey monitoring (no connection monitoring mid-session)
+                if (newEnableHotkey)
+                    StartHotkeyMonitoring();
+                _fileLogger?.Info("Startup mode selected - connection monitoring disabled until next app restart");
+            }
+            else
+            {
+                // Runtime modes: full monitoring
+                var controllerState = GetControllerStateForMode(newTriggerMode);
+                _controllerWasConnected = controllerState.IsConnected;
+                _lastControllerName = controllerState.Name;
+                _fileLogger?.Info($"Runtime mode: Current state - Connected={_controllerWasConnected}, Name={_lastControllerName}");
+                StartMonitoring();
+            }
         }
     }
 }

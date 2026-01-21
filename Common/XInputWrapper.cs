@@ -2,7 +2,7 @@ using System.Runtime.InteropServices;
 
 namespace ControlUp.Common
 {
-    /// <summary>XInput API wrapper for Xbox controller detection.</summary>
+    /// <summary>XInput API wrapper for controller detection and input.</summary>
     public static class XInputWrapper
     {
         [DllImport("xinput1_4.dll")]
@@ -48,12 +48,22 @@ namespace ControlUp.Common
         }
 
         // Constants
-        private const uint XINPUT_DEVTYPE_GAMEPAD = 0x01;
-        private const uint XINPUT_DEVSUBTYPE_GAMEPAD = 0x01;
+        private const byte XINPUT_DEVTYPE_GAMEPAD = 0x01;
         public const uint ERROR_SUCCESS = 0;
-        public const uint ERROR_EMPTY = 0x10D2;
-        private const uint ERROR_DEVICE_NOT_CONNECTED = 1167;
-        public const uint XUSER_INDEX_ANY = 0x000000FF;
+        public const uint ERROR_DEVICE_NOT_CONNECTED = 1167;
+
+        // SubType values for identifying controller type
+        private const byte XINPUT_DEVSUBTYPE_UNKNOWN = 0x00;
+        private const byte XINPUT_DEVSUBTYPE_GAMEPAD = 0x01;
+        private const byte XINPUT_DEVSUBTYPE_WHEEL = 0x02;
+        private const byte XINPUT_DEVSUBTYPE_ARCADE_STICK = 0x03;
+        private const byte XINPUT_DEVSUBTYPE_FLIGHT_STICK = 0x04;
+        private const byte XINPUT_DEVSUBTYPE_DANCE_PAD = 0x05;
+        private const byte XINPUT_DEVSUBTYPE_GUITAR = 0x06;
+        private const byte XINPUT_DEVSUBTYPE_DRUM_KIT = 0x08;
+
+        // Capability flags
+        private const ushort XINPUT_CAPS_WIRELESS = 0x0002;
 
         // Button masks
         public const ushort XINPUT_GAMEPAD_DPAD_UP = 0x0001;
@@ -76,45 +86,105 @@ namespace ControlUp.Common
             return XInputGetState(dwUserIndex, ref pState);
         }
 
+        /// <summary>Check if any XInput controller is connected.</summary>
         public static bool IsControllerConnected()
         {
             for (uint i = 0; i < 4; i++)
             {
                 XINPUT_STATE state = new XINPUT_STATE();
                 if (XInputGetState(i, ref state) == ERROR_SUCCESS)
-                {
-                    XINPUT_CAPABILITIES capabilities = new XINPUT_CAPABILITIES();
-                    uint capResult = XInputGetCapabilities(i, 0, ref capabilities);
-
-                    if (capResult == ERROR_SUCCESS &&
-                        capabilities.Type == XINPUT_DEVTYPE_GAMEPAD &&
-                        capabilities.SubType == XINPUT_DEVSUBTYPE_GAMEPAD)
-                    {
-                        return true;
-                    }
-                }
+                    return true;
             }
             return false;
         }
 
-        public static bool IsControllerConnectedToSlot(uint slot)
+        /// <summary>Get the first connected controller's slot (0-3), or -1 if none.</summary>
+        public static int GetFirstConnectedSlot()
         {
-            if (slot >= 4) return false;
-
-            XINPUT_STATE state = new XINPUT_STATE();
-            if (XInputGetState(slot, ref state) == ERROR_SUCCESS)
+            for (uint i = 0; i < 4; i++)
             {
-                XINPUT_CAPABILITIES capabilities = new XINPUT_CAPABILITIES();
-                uint capResult = XInputGetCapabilities(slot, 0, ref capabilities);
+                XINPUT_STATE state = new XINPUT_STATE();
+                if (XInputGetState(i, ref state) == ERROR_SUCCESS)
+                    return (int)i;
+            }
+            return -1;
+        }
 
-                if (capResult == ERROR_SUCCESS &&
-                    capabilities.Type == XINPUT_DEVTYPE_GAMEPAD &&
-                    capabilities.SubType == XINPUT_DEVSUBTYPE_GAMEPAD)
+        /// <summary>Get a friendly name for the connected controller.</summary>
+        public static string GetControllerName()
+        {
+            for (uint i = 0; i < 4; i++)
+            {
+                XINPUT_STATE state = new XINPUT_STATE();
+                if (XInputGetState(i, ref state) == ERROR_SUCCESS)
                 {
-                    return true;
+                    XINPUT_CAPABILITIES caps = new XINPUT_CAPABILITIES();
+                    if (XInputGetCapabilities(i, 0, ref caps) == ERROR_SUCCESS)
+                    {
+                        return GetControllerNameFromCapabilities(caps);
+                    }
+                    return "XInput Controller";
                 }
             }
-            return false;
+            return null;
+        }
+
+        public class ControllerInfo
+        {
+            public bool Connected { get; set; }
+            public string Name { get; set; }
+            public bool IsWireless { get; set; }
+        }
+
+        /// <summary>Get controller info including name and whether it's wireless.</summary>
+        public static ControllerInfo GetControllerInfo()
+        {
+            for (uint i = 0; i < 4; i++)
+            {
+                XINPUT_STATE state = new XINPUT_STATE();
+                if (XInputGetState(i, ref state) == ERROR_SUCCESS)
+                {
+                    XINPUT_CAPABILITIES caps = new XINPUT_CAPABILITIES();
+                    if (XInputGetCapabilities(i, 0, ref caps) == ERROR_SUCCESS)
+                    {
+                        bool isWireless = (caps.Flags & XINPUT_CAPS_WIRELESS) != 0;
+                        string name = GetControllerNameFromCapabilities(caps);
+                        return new ControllerInfo { Connected = true, Name = name, IsWireless = isWireless };
+                    }
+                    return new ControllerInfo { Connected = true, Name = "XInput Controller", IsWireless = false };
+                }
+            }
+            return new ControllerInfo { Connected = false, Name = null, IsWireless = false };
+        }
+
+        private static string GetControllerNameFromCapabilities(XINPUT_CAPABILITIES caps)
+        {
+            if (caps.Type != XINPUT_DEVTYPE_GAMEPAD)
+                return "XInput Device";
+
+            bool isWireless = (caps.Flags & XINPUT_CAPS_WIRELESS) != 0;
+            string connection = isWireless ? "Wireless" : "";
+
+            switch (caps.SubType)
+            {
+                case XINPUT_DEVSUBTYPE_GAMEPAD:
+                    // Most Xbox controllers report as standard gamepad
+                    return isWireless ? "Xbox Wireless Controller" : "Xbox Controller";
+                case XINPUT_DEVSUBTYPE_WHEEL:
+                    return "Racing Wheel";
+                case XINPUT_DEVSUBTYPE_ARCADE_STICK:
+                    return "Arcade Stick";
+                case XINPUT_DEVSUBTYPE_FLIGHT_STICK:
+                    return "Flight Stick";
+                case XINPUT_DEVSUBTYPE_DANCE_PAD:
+                    return "Dance Pad";
+                case XINPUT_DEVSUBTYPE_GUITAR:
+                    return "Guitar Controller";
+                case XINPUT_DEVSUBTYPE_DRUM_KIT:
+                    return "Drum Kit";
+                default:
+                    return isWireless ? "Wireless Controller" : "XInput Controller";
+            }
         }
     }
 }

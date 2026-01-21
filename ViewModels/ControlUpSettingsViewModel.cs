@@ -9,7 +9,6 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
 using System.Windows;
 
 namespace ControlUp
@@ -32,20 +31,23 @@ namespace ControlUp
             }
         }
 
+        // Filtered list of trigger modes for UI (excludes legacy values)
+        public IEnumerable<FullscreenTriggerMode> AvailableTriggerModes => new[]
+        {
+            FullscreenTriggerMode.Disabled,
+            FullscreenTriggerMode.XInputControllerOnStartup,
+            FullscreenTriggerMode.AnyControllerOnStartup,
+            FullscreenTriggerMode.XInputController,
+            FullscreenTriggerMode.AnyController
+        };
+
         public ControlUpSettingsViewModel(ControlUpPlugin plugin, IPlayniteAPI playniteApi)
         {
             Plugin = plugin;
             PlayniteApi = playniteApi;
 
             var savedSettings = Plugin.LoadPluginSettings<ControlUpSettings>();
-            if (savedSettings != null)
-            {
-                Settings = savedSettings;
-            }
-            else
-            {
-                Settings = new ControlUpSettings();
-            }
+            Settings = savedSettings ?? new ControlUpSettings();
         }
 
         public void BeginEdit()
@@ -61,6 +63,7 @@ namespace ControlUp
         public void EndEdit()
         {
             Plugin.SavePluginSettings(Settings);
+            Plugin.OnSettingsChanged();
         }
 
         public virtual bool VerifySettings(out List<string> errors)
@@ -69,95 +72,99 @@ namespace ControlUp
             return true;
         }
 
-        public string DetectedControllersText { get; set; } = "Click 'Detect Controllers' to scan for connected controllers.";
+        public string DetectedControllersText { get; set; } = "Click 'Detect Controllers' to scan.";
 
         public RelayCommand DetectControllersCommand => new RelayCommand(() =>
         {
             try
             {
-                var controllerInfo = new StringBuilder();
-                controllerInfo.AppendLine("Scanning for connected controllers...\n");
+                var sb = new StringBuilder();
+                sb.AppendLine("=== Controller Detection Results ===\n");
 
-                // Check XInput controllers
-                var xinputControllers = GetXInputControllerInfo();
-                controllerInfo.AppendLine("XInput (Xbox USB Controllers):");
-                if (xinputControllers.Any())
+                // Primary: XInput detection
+                var xinputInfo = XInputWrapper.GetControllerInfo();
+                sb.AppendLine("XInput API (Primary):");
+                if (xinputInfo.Connected)
                 {
-                    foreach (var controller in xinputControllers)
-                    {
-                        controllerInfo.AppendLine($"  • {controller}");
-                    }
+                    string wireless = xinputInfo.IsWireless ? " [Wireless]" : "";
+                    sb.AppendLine($"  ✓ {xinputInfo.Name}{wireless}");
                 }
                 else
                 {
-                    controllerInfo.AppendLine("  • No XInput controllers detected");
+                    sb.AppendLine("  • No XInput controllers detected");
                 }
-                controllerInfo.AppendLine();
+                sb.AppendLine();
 
-                // Check Windows.Gaming.Input controllers
-                var gamingInputControllers = GetGamingInputControllerInfo();
-                controllerInfo.AppendLine("Windows.Gaming.Input (Xbox/Bluetooth Controllers):");
-                if (gamingInputControllers.Any() && !gamingInputControllers.Contains("No controllers detected"))
+                // Secondary: Windows.Gaming.Input
+                sb.AppendLine("Windows.Gaming.Input API (Secondary):");
+                if (!GamingInputWrapper.IsAvailable)
                 {
-                    foreach (var controller in gamingInputControllers)
-                    {
-                        controllerInfo.AppendLine($"  • {controller}");
-                    }
+                    sb.AppendLine("  • API not available on this system");
                 }
                 else
                 {
-                    // Try enhanced Xbox detection if standard detection fails
-                    if (GamingInputWrapper.IsXboxControllerConnected())
+                    int count = GamingInputWrapper.GetControllerCount();
+                    if (count > 0)
                     {
-                        controllerInfo.AppendLine("  • Xbox Controller (Enhanced Detection)");
-                        controllerInfo.AppendLine("    Note: Controller detected via alternative methods");
+                        var name = GamingInputWrapper.GetControllerName();
+                        sb.AppendLine($"  ✓ {name ?? "Game Controller"} ({count} detected)");
                     }
                     else
                     {
-                        controllerInfo.AppendLine("  • No Windows.Gaming.Input controllers detected");
-                        controllerInfo.AppendLine("    Note: Windows.Gaming.Input may not be available or controllers not paired");
+                        sb.AppendLine("  • No controllers detected via this API");
                     }
                 }
-                controllerInfo.AppendLine();
+                sb.AppendLine();
 
-                // Check DirectInput HID controllers
-                var directInputControllers = GetDirectInputControllerInfo();
-                controllerInfo.AppendLine("DirectInput HID Controllers:");
-                if (directInputControllers.Any())
+                // Fallback: HID enumeration
+                sb.AppendLine("HID Enumeration (Fallback):");
+                var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
+                if (hidControllers.Any())
                 {
-                    foreach (var controller in directInputControllers)
+                    foreach (var name in hidControllers.Take(5)) // Limit to 5
                     {
-                        controllerInfo.AppendLine($"  • {controller}");
+                        sb.AppendLine($"  • {name}");
+                    }
+                    if (hidControllers.Count > 5)
+                    {
+                        sb.AppendLine($"  ... and {hidControllers.Count - 5} more");
                     }
                 }
                 else
                 {
-                    controllerInfo.AppendLine("  • No DirectInput controllers detected");
+                    sb.AppendLine("  • No HID game controllers detected");
                 }
-                controllerInfo.AppendLine();
+                sb.AppendLine();
 
-                // Check Raw Input controllers
-                var rawInputControllers = GetRawInputControllerInfo();
-                controllerInfo.AppendLine("Raw Input HID Controllers:");
-                if (rawInputControllers.Any())
+                // Diagnostic: Show Sony/PlayStation device paths
+                sb.AppendLine("PlayStation Device Paths (Diagnostic):");
+                var allPaths = DirectInputWrapper.GetAllHidDevicePaths();
+                var sonyPaths = allPaths.Where(p => p.ToLowerInvariant().Contains("054c") ||
+                                                     p.ToLowerInvariant().Contains("sony") ||
+                                                     p.ToLowerInvariant().Contains("dualsense") ||
+                                                     p.ToLowerInvariant().Contains("dualshock")).ToList();
+                if (sonyPaths.Any())
                 {
-                    foreach (var controller in rawInputControllers)
+                    foreach (var path in sonyPaths.Take(3))
                     {
-                        controllerInfo.AppendLine($"  • {controller}");
+                        // Show shortened path for readability
+                        var shortPath = path.Length > 80 ? path.Substring(0, 80) + "..." : path;
+                        sb.AppendLine($"  • {shortPath}");
                     }
                 }
                 else
                 {
-                    controllerInfo.AppendLine("  • No Raw Input controllers detected");
+                    sb.AppendLine("  • No Sony/PlayStation HID devices found");
+                    sb.AppendLine($"  (Total HID devices: {allPaths.Count})");
                 }
 
-                DetectedControllersText = controllerInfo.ToString();
+                DetectedControllersText = sb.ToString();
                 OnPropertyChanged(nameof(DetectedControllersText));
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to detect controllers");
-                DetectedControllersText = $"Error detecting controllers: {ex.Message}";
+                DetectedControllersText = $"Error: {ex.Message}";
                 OnPropertyChanged(nameof(DetectedControllersText));
             }
         });
@@ -166,21 +173,17 @@ namespace ControlUp
         {
             try
             {
-                // Get the extension directory
                 string extensionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
 
                 if (Directory.Exists(extensionPath))
                 {
-                    // Try to open the folder and select the log file if it exists
                     string logFile = Path.Combine(extensionPath, "ControlUp.log");
                     if (File.Exists(logFile))
                     {
-                        // Open folder and select the log file
                         Process.Start("explorer.exe", $"/select,\"{logFile}\"");
                     }
                     else
                     {
-                        // Just open the folder
                         Process.Start("explorer.exe", extensionPath);
                     }
                 }
@@ -192,100 +195,22 @@ namespace ControlUp
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to open extension folder");
-                PlayniteApi.Dialogs.ShowErrorMessage($"Failed to open extension folder: {ex.Message}", "Error");
+                PlayniteApi.Dialogs.ShowErrorMessage($"Failed to open folder: {ex.Message}", "Error");
             }
         });
-
-        private List<string> GetXInputControllerInfo()
-        {
-            var controllers = new List<string>();
-            try
-            {
-                // Check all 4 possible XInput controller slots
-                for (uint i = 0; i < 4; i++)
-                {
-                    if (XInputWrapper.IsControllerConnectedToSlot(i))
-                    {
-                        controllers.Add($"Controller {i + 1} (USB Xbox Controller)");
-                    }
-                }
-            }
-            catch
-            {
-                controllers.Add("Error checking XInput controllers");
-            }
-            return controllers;
-        }
-
-        private List<string> GetGamingInputControllerInfo()
-        {
-            try
-            {
-                var controllers = GamingInputWrapper.GetConnectedControllerInfo();
-
-                // If Windows.Gaming.Input shows no controllers but we suspect Xbox controllers are connected,
-                // try the enhanced detection
-                if (controllers.Contains("No controllers detected") || controllers.Contains("Windows.Gaming.Input not available"))
-                {
-                    // Try enhanced Xbox detection
-                    if (GamingInputWrapper.IsXboxControllerConnected())
-                    {
-                        return new List<string> { "Xbox Controller (Enhanced Detection)" };
-                    }
-                }
-
-                return controllers;
-            }
-            catch
-            {
-                return new List<string> { "Error checking Windows.Gaming.Input controllers" };
-            }
-        }
-
-        private List<string> GetDirectInputControllerInfo()
-        {
-            var controllers = new List<string>();
-            try
-            {
-                // Get the list of detected controllers from DirectInputWrapper
-                var directInputControllers = DirectInputWrapper.GetConnectedControllerNames();
-                controllers.AddRange(directInputControllers);
-            }
-            catch
-            {
-                controllers.Add("Error checking DirectInput controllers");
-            }
-            return controllers;
-        }
-
-        private List<string> GetRawInputControllerInfo()
-        {
-            var controllers = new List<string>();
-            try
-            {
-                if (RawInputWrapper.IsControllerConnected())
-                {
-                    controllers.Add("HID Game Controller (Raw Input)");
-                }
-            }
-            catch
-            {
-                controllers.Add("Error checking Raw Input controllers");
-            }
-            return controllers;
-        }
 
         public RelayCommand PreviewNotificationCommand => new RelayCommand(() =>
         {
             try
             {
-                var dialog = new ControllerDetectedDialog(Settings);
+                var controllerName = XInputWrapper.GetControllerName() ?? "Controller";
+                var dialog = new ControllerDetectedDialog(Settings, FullscreenTriggerSource.Connection, controllerName);
                 dialog.ShowDialog();
             }
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to preview notification");
-                PlayniteApi.Dialogs.ShowErrorMessage($"Failed to preview notification: {ex.Message}", "Error");
+                PlayniteApi.Dialogs.ShowErrorMessage($"Preview failed: {ex.Message}", "Error");
             }
         });
     }

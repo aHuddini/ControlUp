@@ -9,14 +9,31 @@ namespace ControlUp
     public class ControlUpSettings : ObservableObject, ISettings
     {
         // General Settings
-        private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.UsbControllerConnected;
+        private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.XInputController;
         private bool _enableLogging = false;
         private bool _skipPopupOnConnection = false;
 
         public FullscreenTriggerMode FullscreenTriggerMode
         {
             get => _fullscreenTriggerMode;
-            set => SetValue(ref _fullscreenTriggerMode, value);
+            set => SetValue(ref _fullscreenTriggerMode, MigrateLegacyMode(value));
+        }
+
+        // Migrate legacy enum values to new simplified modes
+        private static FullscreenTriggerMode MigrateLegacyMode(FullscreenTriggerMode mode)
+        {
+            switch (mode)
+            {
+                case FullscreenTriggerMode.UsbControllerConnected:
+                case FullscreenTriggerMode.BluetoothControllerConnected:
+                case FullscreenTriggerMode.AnyControllerConnected:
+                    return FullscreenTriggerMode.XInputController;
+                case FullscreenTriggerMode.UsbControllerOnStartup:
+                case FullscreenTriggerMode.BluetoothControllerOnStartup:
+                    return FullscreenTriggerMode.XInputControllerOnStartup;
+                default:
+                    return mode;
+            }
         }
 
         public bool EnableLogging
@@ -196,20 +213,29 @@ namespace ControlUp
         [Description("Disabled - No controller detection")]
         Disabled,
 
-        [Description("USB Controller - Detect USB/wired Xbox controllers")]
-        UsbControllerConnected,
+        [Description("[On Startup Only] XInput - XInput-compatible controllers")]
+        XInputControllerOnStartup,
 
-        [Description("Bluetooth Controller - Detect Bluetooth wireless controllers")]
-        BluetoothControllerConnected,
+        [Description("[On Startup Only] Any Controller - XInput or other non-XInput controllers")]
+        AnyControllerOnStartup,
 
-        [Description("Any Controller - Detect any controller type")]
-        AnyControllerConnected,
+        [Description("XInput Connected - XInput-compatible controllers")]
+        XInputController,
 
-        [Description("USB Controller (On Startup)")]
-        UsbControllerOnStartup,
+        [Description("Any Controller Connected - XInput or other non-XInput controllers")]
+        AnyController,
 
-        [Description("Bluetooth Controller (On Startup)")]
-        BluetoothControllerOnStartup
+        // Legacy values kept for settings migration (hidden from UI)
+        [Description("")]
+        UsbControllerConnected = 10,
+        [Description("")]
+        BluetoothControllerConnected = 11,
+        [Description("")]
+        AnyControllerConnected = 12,
+        [Description("")]
+        UsbControllerOnStartup = 13,
+        [Description("")]
+        BluetoothControllerOnStartup = 14
     }
 
     public enum NotificationPosition
@@ -238,20 +264,32 @@ namespace ControlUp
 
     public enum ControllerHotkey
     {
-        [Description("Start + RB")]
+        [Description("Start + RB (Options + R1)")]
         StartPlusRB,
 
-        [Description("Start + LB")]
+        [Description("Start + LB (Options + L1)")]
         StartPlusLB,
 
-        [Description("Back + Start")]
+        [Description("Back + Start (Share + Options)")]
         BackPlusStart,
 
-        [Description("Back + RB")]
+        [Description("Back + RB (Share + R1)")]
         BackPlusRB,
 
-        [Description("Back + LB")]
-        BackPlusLB
+        [Description("Back + LB (Share + L1)")]
+        BackPlusLB,
+
+        [Description("Guide + Start (PS + Options)")]
+        GuidePlusStart,
+
+        [Description("Guide + Back (PS + Share)")]
+        GuidePlusBack,
+
+        [Description("Guide + RB (PS + R1)")]
+        GuidePlusRB,
+
+        [Description("Guide + LB (PS + L1)")]
+        GuidePlusLB
     }
 
     public enum FullscreenTriggerSource
