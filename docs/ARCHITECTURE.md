@@ -82,13 +82,9 @@ This callback is invoked by Playnite whenever a controller button state changes 
 ┌─────────────────────────────────────────────────────────────────┐
 │                     SwitchToFullscreen()                         │
 │                                                                  │
-│  1. Start Playnite.FullscreenApp.exe                            │
-│     --nolibupdate --startfullscreen --masterinstance            │
+│  Process.Start("Playnite.FullscreenApp.exe")                    │
+│  (Playnite handles mode coordination internally)                 │
 │                                                                  │
-│  2. Application.Current.Shutdown()                               │
-│     (Releases database lock)                                     │
-│                                                                  │
-│  3. Fullscreen app takes over as master instance                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 
