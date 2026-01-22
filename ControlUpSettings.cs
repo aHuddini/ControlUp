@@ -9,7 +9,7 @@ namespace ControlUp
     public class ControlUpSettings : ObservableObject, ISettings
     {
         // General Settings
-        private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.AnyControllerConnectedAnytime;
+        private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.NewConnectionOnly;
         private bool _enableLogging = false;
         private bool _skipPopupOnConnection = false;
 
@@ -185,14 +185,17 @@ namespace ControlUp
 
     public enum FullscreenTriggerMode
     {
-        [Description("Disabled - No controller detection")]
-        Disabled,
+        [Description("New Connection Only (Recommended)")]
+        NewConnectionOnly,
 
         [Description("Any Controller Connected Anytime")]
         AnyControllerConnectedAnytime,
 
-        [Description("Any Controller on Playnite Startup Only")]
-        AnyControllerOnStartupOnly
+        [Description("Any Controller on Startup Only")]
+        AnyControllerOnStartupOnly,
+
+        [Description("Disabled")]
+        Disabled
     }
 
     public enum NotificationPosition

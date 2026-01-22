@@ -5,10 +5,7 @@ using System.Text;
 
 namespace ControlUp.Common
 {
-    /// <summary>
-    /// Lightweight HID device enumeration for detecting game controllers.
-    /// Detects Xbox, PlayStation, Switch, and other HID gamepads.
-    /// </summary>
+    /// <summary>Detects game controllers via HID (Xbox, PlayStation, Switch, etc.).</summary>
     public static class HidControllerDetector
     {
         // SetupAPI imports
@@ -134,9 +131,7 @@ namespace ControlUp.Common
             public string Type { get; set; }
         }
 
-        /// <summary>
-        /// Enumerate all connected game controllers (HID gamepads/joysticks).
-        /// </summary>
+        /// <summary>Returns all connected HID game controllers.</summary>
         public static List<ControllerInfo> GetConnectedControllers()
         {
             var controllers = new List<ControllerInfo>();
@@ -295,9 +290,7 @@ namespace ControlUp.Common
             }
         }
 
-        /// <summary>
-        /// Check if any game controller is connected.
-        /// </summary>
+        /// <summary>Returns true if any game controller is connected.</summary>
         public static bool IsAnyControllerConnected()
         {
             return GetConnectedControllers().Count > 0;

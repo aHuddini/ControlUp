@@ -124,10 +124,7 @@ namespace ControlUp
             StopConnectionMonitoring();
         }
 
-        /// <summary>
-        /// Called by Playnite when a controller button is pressed/released in Desktop mode.
-        /// This is the new SDK callback that replaces our custom XInput polling.
-        /// </summary>
+        /// <summary>Handles controller button events from Playnite's SDL input system.</summary>
         public override void OnDesktopControllerButtonStateChanged(OnControllerButtonStateChangedArgs args)
         {
             // Forward to active dialog if showing
@@ -219,8 +216,10 @@ namespace ControlUp
         private void StartConnectionMonitoring()
         {
             var triggerMode = Settings.Settings.FullscreenTriggerMode;
-            // Only need runtime monitoring for "Anytime" mode (startup-only doesn't need continuous monitoring)
-            bool needsConnectionMonitoring = triggerMode == FullscreenTriggerMode.AnyControllerConnectedAnytime;
+            // Need runtime monitoring for "Anytime" and "NewConnectionOnly" modes
+            // (startup-only doesn't need continuous monitoring)
+            bool needsConnectionMonitoring = triggerMode == FullscreenTriggerMode.AnyControllerConnectedAnytime ||
+                                             triggerMode == FullscreenTriggerMode.NewConnectionOnly;
 
             if (!needsConnectionMonitoring)
             {

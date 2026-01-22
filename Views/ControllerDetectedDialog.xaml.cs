@@ -75,9 +75,7 @@ namespace ControlUp.Dialogs
             ApplyTriggerSourceText();
         }
 
-        /// <summary>
-        /// Handle controller input forwarded from the main plugin's OnDesktopControllerButtonStateChanged.
-        /// </summary>
+        /// <summary>Handles controller input forwarded from the main plugin.</summary>
         public void HandleControllerInput(ControllerInput button, ControllerInputState state)
         {
             // Only handle button press events
