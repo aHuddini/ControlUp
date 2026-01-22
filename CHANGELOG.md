@@ -3,11 +3,11 @@
 ## Version 2.1.0 (January 22, 2026)
 
 ### Breaking Changes
-- **Requires Playnite 11+** with SDL controller support
+- **Requires experimental Playnite test build** with Desktop mode controller support (not official releases)
 - Users must enable "Controller input" in Playnite Desktop mode settings
 
 ### Major Changes
-- **SDK-Based Controller Input**: Complete architectural rewrite using Playnite's `OnDesktopControllerButtonStateChanged` callback
+- **SDK-Based Controller Input**: Complete architectural rewrite using experimental `OnDesktopControllerButtonStateChanged` callback from test SDK
   - Zero polling overhead - events pushed by Playnite's SDL layer
   - Works with all controller types: Xbox, PlayStation, Nintendo, third-party
   - No custom threads or timers for input detection
@@ -20,9 +20,7 @@
 - **HID Controller Detection**: Cross-platform detection for connection monitoring (Xbox, PlayStation, Nintendo, 8BitDo)
 
 ### Improvements
-- **Reliable Mode Switching**: Fixed fullscreen launch using Playnite's internal mechanism
-  - Properly releases database lock before launching Fullscreen app
-  - Uses `--nolibupdate --startfullscreen --masterinstance --hidesplashscreen` arguments
+- **Reliable Mode Switching**: Simply launches Fullscreen app, Playnite handles coordination internally
 - **Better Enum Display**: Settings dropdowns now show descriptive text instead of enum names
 - **Developer Documentation**: Added `docs/` folder with architecture and SDK reference
 
@@ -33,7 +31,7 @@
 - Background polling threads - Replaced by SDK callbacks
 
 ### Technical
-- Playnite SDK with SDL support (local DLL, not NuGet)
+- Experimental Playnite SDK test build with Desktop controller support (local DLL, not NuGet)
 - HashSet-based button tracking for O(1) combo detection
 - Event-driven architecture with no busy-waiting
 

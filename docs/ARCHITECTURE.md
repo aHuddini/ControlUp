@@ -2,7 +2,9 @@
 
 ## Overview
 
-ControlUp is a Playnite extension that switches from Desktop mode to Fullscreen mode when a game controller is detected. Version 2.x leverages Playnite's new **SDL-based controller input system** via the `OnDesktopControllerButtonStateChanged` SDK callback.
+ControlUp is a Playnite extension that switches from Desktop mode to Fullscreen mode when a game controller is detected. Version 2.x leverages an **experimental test build** of the Playnite SDK with SDL-based controller input for Desktop mode.
+
+> **Important**: This extension uses an experimental SDK feature (`OnDesktopControllerButtonStateChanged`) that is not part of official Playnite releases. It requires a special test build of Playnite with Desktop mode controller support enabled.
 
 ## Key Innovation: SDK-Based Input
 
@@ -16,7 +18,7 @@ Previous versions used custom polling threads with XInput, DirectInput, and Wind
 
 ### The Solution (v2.x)
 
-Playnite 11+ added SDL controller support with a new SDK callback:
+An experimental Playnite test build added SDL controller support with a new SDK callback:
 
 ```csharp
 public override void OnDesktopControllerButtonStateChanged(OnControllerButtonStateChangedArgs args)
@@ -137,7 +139,7 @@ Lightweight HID enumeration for connection detection:
 
 ### 3. Mode Switching (SwitchToFullscreen)
 
-Mimics Playnite's internal `QuitAndStart` mechanism:
+Simply launches the Fullscreen app and lets Playnite handle the mode switching internally:
 
 ```csharp
 private void SwitchToFullscreen()
@@ -146,28 +148,14 @@ private void SwitchToFullscreen()
         PlayniteApi.Paths.ApplicationPath,
         "Playnite.FullscreenApp.exe");
 
-    // Same arguments Playnite uses internally
-    string arguments = "--nolibupdate --startfullscreen --masterinstance --hidesplashscreen";
-
-    // Start fullscreen app
-    Process.Start(new ProcessStartInfo {
-        FileName = fullscreenExe,
-        Arguments = arguments,
-        UseShellExecute = true
-    });
-
-    // Shutdown Desktop to release database lock
-    Application.Current.Shutdown();
+    if (File.Exists(fullscreenExe))
+    {
+        Process.Start(fullscreenExe);
+    }
 }
 ```
 
-**Command Line Arguments:**
-| Argument | Purpose |
-|----------|---------|
-| `--nolibupdate` | Skip library update on startup |
-| `--startfullscreen` | Launch in fullscreen mode |
-| `--masterinstance` | Take over as the main Playnite instance |
-| `--hidesplashscreen` | Skip splash screen during switch |
+Playnite handles the coordination between Desktop and Fullscreen apps internally.
 
 ### 4. Dialog Controller Navigation
 
@@ -264,11 +252,11 @@ ControlUp/
 
 ## Prerequisites for Development
 
-1. **Playnite SDK with SDL support**: The `OnDesktopControllerButtonStateChanged` callback requires a Playnite build with SDL controller support enabled.
+1. **Experimental Playnite SDK**: The `OnDesktopControllerButtonStateChanged` callback requires a **test build** of Playnite with experimental Desktop mode controller support. This is not available in official releases.
 
 2. **User Configuration**: Users must enable "Controller input" in Playnite's Desktop mode settings for the SDK callback to fire.
 
-3. **Reference the correct SDK**: Use the local SDK DLL that includes the new callback, not the NuGet package (which may be outdated).
+3. **Reference the test SDK**: Use the local SDK DLL from the test build (in `lib/` folder), not the official NuGet package.
 
 ## Performance Considerations
 

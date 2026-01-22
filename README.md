@@ -12,7 +12,9 @@
 
 ## About
 
-ControlUp is a Playnite extension that automatically detects game controllers and offers to switch from Desktop mode to Fullscreen mode. Version 2.x leverages Playnite's new **SDL-based controller input system** for reliable cross-platform gamepad support.
+ControlUp is a Playnite extension that automatically detects game controllers and offers to switch from Desktop mode to Fullscreen mode. Version 2.x leverages an **experimental test build** of Playnite's SDK with SDL-based controller input for Desktop mode.
+
+> **Note**: This extension requires an experimental Playnite test build with Desktop mode controller support. This feature is not yet part of official Playnite releases.
 
 <img width="548" height="440" alt="ControlUp Popup" src="https://github.com/user-attachments/assets/09a615c7-a52d-49c2-a746-95148ff7b0dc" />
 
@@ -29,7 +31,7 @@ ControlUp is a Playnite extension that automatically detects game controllers an
 
 ## Requirements
 
-- **Playnite 11+** with SDL controller support
+- **Playnite test build** with experimental Desktop mode controller support (not official releases)
 - **Windows 10/11**
 - Enable **"Controller input"** in Playnite Desktop mode settings
 

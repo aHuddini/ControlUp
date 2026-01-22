@@ -2,11 +2,13 @@
 
 ## Overview
 
-Playnite 11+ introduced SDL-based controller support with new SDK callbacks for Desktop mode. This document covers the APIs used by ControlUp.
+This extension uses an **experimental test build** of the Playnite SDK that includes SDL-based controller support for Desktop mode. This feature is not yet part of official Playnite releases.
+
+> **Important**: The `OnDesktopControllerButtonStateChanged` callback is an experimental feature from a test build. It may change or be removed in future Playnite versions.
 
 ## SDK Callback: OnDesktopControllerButtonStateChanged
 
-**Available in:** Playnite SDK with SDL support (not yet in official NuGet package)
+**Available in:** Experimental Playnite SDK test build with SDL support (not in official NuGet package or stable releases)
 
 **Purpose:** Notifies plugins when a controller button is pressed or released in Desktop mode.
 
@@ -174,9 +176,9 @@ The SDK only provides digital button events. If you need analog stick values or 
 
 ## SDK Setup
 
-### Using Local SDK DLL
+### Experimental SDK Build
 
-Since the NuGet package may not include SDL support yet:
+This extension requires an **experimental test build** of the Playnite SDK. The official NuGet package and stable Playnite releases do not include Desktop mode controller support.
 
 ```xml
 <!-- ControlUp.csproj -->
@@ -188,11 +190,13 @@ Since the NuGet package may not include SDL support yet:
 </ItemGroup>
 ```
 
-### Getting the SDK
+### Getting the Test SDK
 
-Download a Playnite build with SDL controller support:
-- Test builds may be available at: `https://playnite.link/download/`
-- Extract `Playnite.SDK.dll` from the installation
+1. Obtain a Playnite test build with experimental SDL controller support
+2. Extract `Playnite.SDK.dll` from the test installation
+3. Place in `lib/` folder of this project
+
+> **Note**: Test builds are not officially published. Contact the Playnite developer or check Discord for availability.
 
 ## Related SDK Members
 
