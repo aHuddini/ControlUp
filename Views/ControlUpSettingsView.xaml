@@ -85,16 +85,10 @@
                                      IsEnabled="{Binding Settings.EnableHotkey}"
                                      Margin="0,10,0,0"/>
 
-                            <TextBlock Text="Polling Interval:" Margin="0,15,0,5"/>
-                            <TextBlock Text="How often to check for hotkey press. Lower = more responsive. Recommended: 50-100ms." FontSize="11" Foreground="Gray" Margin="0,0,0,5"/>
-                            <StackPanel Orientation="Horizontal">
-                                <Slider Value="{Binding Settings.HotkeyPollingIntervalMs}"
-                                        Minimum="5" Maximum="500" Width="200"
-                                        TickFrequency="5" IsSnapToTickEnabled="True"
-                                        IsEnabled="{Binding Settings.EnableHotkey}"/>
-                                <TextBlock Text="{Binding Settings.HotkeyPollingIntervalMs, StringFormat={}{0} ms}"
-                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="60"/>
-                            </StackPanel>
+                            <TextBlock Text="Note: Hotkey detection uses Playnite's built-in SDL controller support."
+                                       FontSize="11" Foreground="Gray" Margin="0,15,0,0" TextWrapping="Wrap"/>
+                            <TextBlock Text="Make sure 'Controller input' is enabled in Playnite's Desktop mode settings."
+                                       FontSize="11" Foreground="#FFB0B0" Margin="0,5,0,0" TextWrapping="Wrap"/>
                         </StackPanel>
                     </Border>
 

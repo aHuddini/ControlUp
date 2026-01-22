@@ -1,13 +1,11 @@
+using Playnite.SDK.Events;
 using System;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
-using ControlUp.Common;
 
 namespace ControlUp.Dialogs
 {
@@ -23,12 +21,8 @@ namespace ControlUp.Dialogs
         private DispatcherTimer _autoCloseTimer;
         private int _remainingSeconds;
 
-        // XInput controller monitoring
-        private CancellationTokenSource _controllerCts;
-        private ushort _lastButtonState = 0;
+        // Button selection
         private int _selectedIndex = 0; // 0 = Yes, 1 = Cancel
-        private bool _thumbstickWasCentered = true; // Track thumbstick state to prevent rapid switching
-        private const short THUMBSTICK_DEADZONE = 16000; // ~50% of max range
 
         // Windows Composition API for blur
         [DllImport("user32.dll")]
@@ -81,6 +75,49 @@ namespace ControlUp.Dialogs
             ApplyTriggerSourceText();
         }
 
+        /// <summary>
+        /// Handle controller input forwarded from the main plugin's OnDesktopControllerButtonStateChanged.
+        /// </summary>
+        public void HandleControllerInput(ControllerInput button, ControllerInputState state)
+        {
+            // Only handle button press events
+            if (state != ControllerInputState.Pressed)
+                return;
+
+            // Reset timer on any input
+            _remainingSeconds = _settings.NotificationDurationSeconds;
+            UpdateCountdown();
+
+            switch (button)
+            {
+                // Navigation: D-pad or left stick
+                case ControllerInput.DPadLeft:
+                case ControllerInput.DPadRight:
+                case ControllerInput.LeftStickLeft:
+                case ControllerInput.LeftStickRight:
+                    _selectedIndex = _selectedIndex == 0 ? 1 : 0;
+                    UpdateButtonStyles();
+                    if (_selectedIndex == 0)
+                        YesButton.Focus();
+                    else
+                        CancelButton.Focus();
+                    break;
+
+                // A button = confirm selection
+                case ControllerInput.A:
+                    if (_selectedIndex == 0)
+                        YesButton_Click(this, new RoutedEventArgs());
+                    else
+                        CancelButton_Click(this, new RoutedEventArgs());
+                    break;
+
+                // B button = cancel
+                case ControllerInput.B:
+                    CancelButton_Click(this, new RoutedEventArgs());
+                    break;
+            }
+        }
+
         private void ApplyTriggerSourceText()
         {
             if (_triggerSource == FullscreenTriggerSource.Hotkey)
@@ -131,12 +168,6 @@ namespace ControlUp.Dialogs
             };
             _autoCloseTimer.Tick += AutoCloseTimer_Tick;
             _autoCloseTimer.Start();
-
-            // Initialize XInput button state
-            InitializeControllerState();
-
-            // Start controller input monitoring
-            StartControllerMonitoring();
         }
 
         private void PositionWindow()
@@ -267,114 +298,6 @@ namespace ControlUp.Dialogs
             return Color.FromRgb(0x1E, 0x1E, 0x1E); // Default dark gray
         }
 
-        private void InitializeControllerState()
-        {
-            try
-            {
-                XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
-                if (XInputWrapper.GetState(0, ref state) == 0)
-                {
-                    _lastButtonState = state.Gamepad.wButtons;
-                }
-            }
-            catch { }
-        }
-
-        private void StartControllerMonitoring()
-        {
-            _controllerCts = new CancellationTokenSource();
-
-            Task.Run(async () =>
-            {
-                await Task.Delay(100); // Initial delay to let window fully load
-
-                while (!_controllerCts.Token.IsCancellationRequested)
-                {
-                    try
-                    {
-                        XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
-                        if (XInputWrapper.GetState(0, ref state) == 0)
-                        {
-                            ushort currentButtons = state.Gamepad.wButtons;
-                            ushort pressedButtons = (ushort)(currentButtons & ~_lastButtonState);
-
-                            // Check thumbstick position (left stick X axis, or right stick X axis)
-                            short thumbLX = state.Gamepad.sThumbLX;
-                            short thumbRX = state.Gamepad.sThumbRX;
-                            bool thumbstickLeft = thumbLX < -THUMBSTICK_DEADZONE || thumbRX < -THUMBSTICK_DEADZONE;
-                            bool thumbstickRight = thumbLX > THUMBSTICK_DEADZONE || thumbRX > THUMBSTICK_DEADZONE;
-                            bool thumbstickCentered = !thumbstickLeft && !thumbstickRight;
-
-                            // Handle thumbstick navigation (only trigger once per movement)
-                            if (_thumbstickWasCentered && (thumbstickLeft || thumbstickRight))
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    _remainingSeconds = _settings.NotificationDurationSeconds;
-                                    UpdateCountdown();
-
-                                    _selectedIndex = _selectedIndex == 0 ? 1 : 0;
-                                    UpdateButtonStyles();
-                                    if (_selectedIndex == 0)
-                                        YesButton.Focus();
-                                    else
-                                        CancelButton.Focus();
-                                });
-                                _thumbstickWasCentered = false;
-                            }
-                            else if (thumbstickCentered)
-                            {
-                                _thumbstickWasCentered = true;
-                            }
-
-                            if (pressedButtons != 0)
-                            {
-                                Dispatcher.Invoke(() =>
-                                {
-                                    // Reset timer on any input
-                                    _remainingSeconds = _settings.NotificationDurationSeconds;
-                                    UpdateCountdown();
-
-                                    // D-pad left/right to switch selection
-                                    if ((pressedButtons & (XInputWrapper.XINPUT_GAMEPAD_DPAD_LEFT | XInputWrapper.XINPUT_GAMEPAD_DPAD_RIGHT)) != 0)
-                                    {
-                                        _selectedIndex = _selectedIndex == 0 ? 1 : 0;
-                                        UpdateButtonStyles();
-                                        if (_selectedIndex == 0)
-                                            YesButton.Focus();
-                                        else
-                                            CancelButton.Focus();
-                                    }
-                                    // A button = confirm selection
-                                    else if ((pressedButtons & XInputWrapper.XINPUT_GAMEPAD_A) != 0)
-                                    {
-                                        if (_selectedIndex == 0)
-                                            YesButton_Click(this, new RoutedEventArgs());
-                                        else
-                                            CancelButton_Click(this, new RoutedEventArgs());
-                                    }
-                                    // B button = cancel
-                                    else if ((pressedButtons & XInputWrapper.XINPUT_GAMEPAD_B) != 0)
-                                    {
-                                        CancelButton_Click(this, new RoutedEventArgs());
-                                    }
-                                });
-                            }
-
-                            _lastButtonState = currentButtons;
-                        }
-
-                        await Task.Delay(50, _controllerCts.Token);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        break;
-                    }
-                    catch { }
-                }
-            }, _controllerCts.Token);
-        }
-
         private void UpdateButtonStyles()
         {
             // Yes button styling
@@ -463,7 +386,6 @@ namespace ControlUp.Dialogs
         private void YesButton_Click(object sender, RoutedEventArgs e)
         {
             _autoCloseTimer?.Stop();
-            _controllerCts?.Cancel();
             UserSelectedYes = true;
             DialogResult = true;
             Close();
@@ -472,7 +394,6 @@ namespace ControlUp.Dialogs
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             _autoCloseTimer?.Stop();
-            _controllerCts?.Cancel();
             UserSelectedYes = false;
             DialogResult = false;
             Close();
@@ -481,7 +402,6 @@ namespace ControlUp.Dialogs
         protected override void OnClosed(EventArgs e)
         {
             _autoCloseTimer?.Stop();
-            _controllerCts?.Cancel();
             base.OnClosed(e);
         }
     }

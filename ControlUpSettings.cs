@@ -9,7 +9,7 @@ namespace ControlUp
     public class ControlUpSettings : ObservableObject, ISettings
     {
         // General Settings
-        private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.UsbControllerConnected;
+        private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.AnyControllerConnectedAnytime;
         private bool _enableLogging = false;
         private bool _skipPopupOnConnection = false;
 
@@ -35,7 +35,6 @@ namespace ControlUp
         private bool _enableHotkey = true;
         private ControllerHotkey _hotkeyCombo = ControllerHotkey.StartPlusRB;
         private bool _skipPopupOnHotkey = false;
-        private int _hotkeyPollingIntervalMs = 70;
 
         public bool EnableHotkey
         {
@@ -53,13 +52,6 @@ namespace ControlUp
         {
             get => _skipPopupOnHotkey;
             set => SetValue(ref _skipPopupOnHotkey, value);
-        }
-
-        /// <summary>Polling interval in ms (5-500). Lower = more responsive. Default: 70ms.</summary>
-        public int HotkeyPollingIntervalMs
-        {
-            get => _hotkeyPollingIntervalMs;
-            set => SetValue(ref _hotkeyPollingIntervalMs, Math.Max(5, Math.Min(500, value)));
         }
 
         // Notification Settings
@@ -196,20 +188,11 @@ namespace ControlUp
         [Description("Disabled - No controller detection")]
         Disabled,
 
-        [Description("USB Controller - Detect USB/wired Xbox controllers")]
-        UsbControllerConnected,
+        [Description("Any Controller Connected Anytime")]
+        AnyControllerConnectedAnytime,
 
-        [Description("Bluetooth Controller - Detect Bluetooth wireless controllers")]
-        BluetoothControllerConnected,
-
-        [Description("Any Controller - Detect any controller type")]
-        AnyControllerConnected,
-
-        [Description("USB Controller (On Startup)")]
-        UsbControllerOnStartup,
-
-        [Description("Bluetooth Controller (On Startup)")]
-        BluetoothControllerOnStartup
+        [Description("Any Controller on Playnite Startup Only")]
+        AnyControllerOnStartupOnly
     }
 
     public enum NotificationPosition
@@ -238,6 +221,7 @@ namespace ControlUp
 
     public enum ControllerHotkey
     {
+        // Combo hotkeys
         [Description("Start + RB")]
         StartPlusRB,
 
@@ -251,7 +235,17 @@ namespace ControlUp
         BackPlusRB,
 
         [Description("Back + LB")]
-        BackPlusLB
+        BackPlusLB,
+
+        // Single button hotkeys
+        [Description("Guide Button (Xbox/PS)")]
+        GuideButton,
+
+        [Description("Start/Options Button")]
+        StartButton,
+
+        [Description("Back/View/Share Button")]
+        BackButton
     }
 
     public enum FullscreenTriggerSource

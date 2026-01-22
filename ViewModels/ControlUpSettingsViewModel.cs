@@ -6,11 +6,8 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Text;
-using System.Threading.Tasks;
-using System.Windows;
 
 namespace ControlUp
 {
@@ -78,78 +75,46 @@ namespace ControlUp
                 var controllerInfo = new StringBuilder();
                 controllerInfo.AppendLine("Scanning for connected controllers...\n");
 
-                // Check XInput controllers
-                var xinputControllers = GetXInputControllerInfo();
-                controllerInfo.AppendLine("XInput (Xbox USB Controllers):");
-                if (xinputControllers.Any())
-                {
-                    foreach (var controller in xinputControllers)
-                    {
-                        controllerInfo.AppendLine($"  • {controller}");
-                    }
-                }
-                else
-                {
-                    controllerInfo.AppendLine("  • No XInput controllers detected");
-                }
-                controllerInfo.AppendLine();
+                // Get all HID game controllers (works for PS5, Xbox, Switch, etc.)
+                var hidControllers = HidControllerDetector.GetConnectedControllers();
 
-                // Check Windows.Gaming.Input controllers
-                var gamingInputControllers = GetGamingInputControllerInfo();
-                controllerInfo.AppendLine("Windows.Gaming.Input (Xbox/Bluetooth Controllers):");
-                if (gamingInputControllers.Any() && !gamingInputControllers.Contains("No controllers detected"))
+                if (hidControllers.Count > 0)
                 {
-                    foreach (var controller in gamingInputControllers)
+                    controllerInfo.AppendLine("Detected Controllers:");
+                    foreach (var controller in hidControllers)
                     {
-                        controllerInfo.AppendLine($"  • {controller}");
+                        controllerInfo.AppendLine($"  - {controller.Name}");
+                        controllerInfo.AppendLine($"    Type: {controller.Type}");
+                        controllerInfo.AppendLine($"    Manufacturer: {controller.Manufacturer}");
+                        controllerInfo.AppendLine($"    VID: 0x{controller.VendorId:X4}, PID: 0x{controller.ProductId:X4}");
+                        controllerInfo.AppendLine();
                     }
                 }
                 else
                 {
-                    // Try enhanced Xbox detection if standard detection fails
-                    if (GamingInputWrapper.IsXboxControllerConnected())
-                    {
-                        controllerInfo.AppendLine("  • Xbox Controller (Enhanced Detection)");
-                        controllerInfo.AppendLine("    Note: Controller detected via alternative methods");
-                    }
-                    else
-                    {
-                        controllerInfo.AppendLine("  • No Windows.Gaming.Input controllers detected");
-                        controllerInfo.AppendLine("    Note: Windows.Gaming.Input may not be available or controllers not paired");
-                    }
+                    controllerInfo.AppendLine("No game controllers detected.");
+                    controllerInfo.AppendLine();
                 }
-                controllerInfo.AppendLine();
 
-                // Check DirectInput HID controllers
-                var directInputControllers = GetDirectInputControllerInfo();
-                controllerInfo.AppendLine("DirectInput HID Controllers:");
-                if (directInputControllers.Any())
+                // Also check XInput for comparison
+                controllerInfo.AppendLine("XInput Status (Xbox/XInput only):");
+                bool anyXInput = false;
+                for (uint i = 0; i < 4; i++)
                 {
-                    foreach (var controller in directInputControllers)
+                    if (XInputWrapper.IsControllerConnectedToSlot(i))
                     {
-                        controllerInfo.AppendLine($"  • {controller}");
+                        controllerInfo.AppendLine($"  - Slot {i + 1}: Connected");
+                        anyXInput = true;
                     }
                 }
-                else
+                if (!anyXInput)
                 {
-                    controllerInfo.AppendLine("  • No DirectInput controllers detected");
+                    controllerInfo.AppendLine("  - No XInput controllers");
                 }
-                controllerInfo.AppendLine();
 
-                // Check Raw Input controllers
-                var rawInputControllers = GetRawInputControllerInfo();
-                controllerInfo.AppendLine("Raw Input HID Controllers:");
-                if (rawInputControllers.Any())
-                {
-                    foreach (var controller in rawInputControllers)
-                    {
-                        controllerInfo.AppendLine($"  • {controller}");
-                    }
-                }
-                else
-                {
-                    controllerInfo.AppendLine("  • No Raw Input controllers detected");
-                }
+                controllerInfo.AppendLine();
+                controllerInfo.AppendLine("Note: Hotkey detection uses Playnite's SDL support.");
+                controllerInfo.AppendLine("Enable 'Controller input' in Playnite Desktop settings.");
 
                 DetectedControllersText = controllerInfo.ToString();
                 OnPropertyChanged(nameof(DetectedControllersText));
@@ -195,85 +160,6 @@ namespace ControlUp
                 PlayniteApi.Dialogs.ShowErrorMessage($"Failed to open extension folder: {ex.Message}", "Error");
             }
         });
-
-        private List<string> GetXInputControllerInfo()
-        {
-            var controllers = new List<string>();
-            try
-            {
-                // Check all 4 possible XInput controller slots
-                for (uint i = 0; i < 4; i++)
-                {
-                    if (XInputWrapper.IsControllerConnectedToSlot(i))
-                    {
-                        controllers.Add($"Controller {i + 1} (USB Xbox Controller)");
-                    }
-                }
-            }
-            catch
-            {
-                controllers.Add("Error checking XInput controllers");
-            }
-            return controllers;
-        }
-
-        private List<string> GetGamingInputControllerInfo()
-        {
-            try
-            {
-                var controllers = GamingInputWrapper.GetConnectedControllerInfo();
-
-                // If Windows.Gaming.Input shows no controllers but we suspect Xbox controllers are connected,
-                // try the enhanced detection
-                if (controllers.Contains("No controllers detected") || controllers.Contains("Windows.Gaming.Input not available"))
-                {
-                    // Try enhanced Xbox detection
-                    if (GamingInputWrapper.IsXboxControllerConnected())
-                    {
-                        return new List<string> { "Xbox Controller (Enhanced Detection)" };
-                    }
-                }
-
-                return controllers;
-            }
-            catch
-            {
-                return new List<string> { "Error checking Windows.Gaming.Input controllers" };
-            }
-        }
-
-        private List<string> GetDirectInputControllerInfo()
-        {
-            var controllers = new List<string>();
-            try
-            {
-                // Get the list of detected controllers from DirectInputWrapper
-                var directInputControllers = DirectInputWrapper.GetConnectedControllerNames();
-                controllers.AddRange(directInputControllers);
-            }
-            catch
-            {
-                controllers.Add("Error checking DirectInput controllers");
-            }
-            return controllers;
-        }
-
-        private List<string> GetRawInputControllerInfo()
-        {
-            var controllers = new List<string>();
-            try
-            {
-                if (RawInputWrapper.IsControllerConnected())
-                {
-                    controllers.Add("HID Game Controller (Raw Input)");
-                }
-            }
-            catch
-            {
-                controllers.Add("Error checking Raw Input controllers");
-            }
-            return controllers;
-        }
 
         public RelayCommand PreviewNotificationCommand => new RelayCommand(() =>
         {
