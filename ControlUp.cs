@@ -348,51 +348,22 @@ namespace ControlUp
         {
             try
             {
-                _fileLogger?.Info("Switching to fullscreen mode");
-
-                // PlayniteApi.Paths.ApplicationPath is the installation directory (not executable path)
                 string fullscreenExe = Path.Combine(PlayniteApi.Paths.ApplicationPath, "Playnite.FullscreenApp.exe");
-                _fileLogger?.Info($"ApplicationPath: {PlayniteApi.Paths.ApplicationPath}");
-                _fileLogger?.Info($"Fullscreen exe path: {fullscreenExe}");
+                _fileLogger?.Info($"Launching: {fullscreenExe}");
 
                 if (File.Exists(fullscreenExe))
                 {
-                    // Use the same arguments Playnite uses internally when switching modes:
-                    // --nolibupdate: Skip library update on startup
-                    // --startfullscreen: Start in fullscreen mode
-                    // --masterinstance: This instance takes over as the main Playnite instance
-                    // --hidesplashscreen: Don't show splash screen during switch
-                    string arguments = "--nolibupdate --startfullscreen --masterinstance --hidesplashscreen";
-                    _fileLogger?.Info($"Launching fullscreen app with args: {arguments}");
-
-                    // Start the fullscreen app directly - this is how Playnite does it internally
-                    // The fullscreen app will wait for the database lock to be released
-                    var startInfo = new System.Diagnostics.ProcessStartInfo
-                    {
-                        FileName = fullscreenExe,
-                        Arguments = arguments,
-                        UseShellExecute = true,
-                        WorkingDirectory = PlayniteApi.Paths.ApplicationPath
-                    };
-
-                    System.Diagnostics.Process.Start(startInfo);
-                    _fileLogger?.Info("Started fullscreen app, now shutting down Desktop");
-
-                    // Shutdown the Desktop app - this releases the database lock
-                    // The fullscreen app (with --masterinstance) will take over
-                    Application.Current.Shutdown();
+                    System.Diagnostics.Process.Start(fullscreenExe);
                 }
                 else
                 {
-                    _fileLogger?.Error($"Fullscreen app not found at: {fullscreenExe}");
-                    Logger.Error($"ControlUp: Could not find Playnite.FullscreenApp.exe at {fullscreenExe}");
+                    _fileLogger?.Error($"Fullscreen app not found: {fullscreenExe}");
+                    Logger.Error($"ControlUp: Could not find Playnite.FullscreenApp.exe");
                 }
             }
             catch (Exception ex)
             {
                 _fileLogger?.Error($"Error switching to fullscreen: {ex.Message}");
-                _fileLogger?.Error($"Exception type: {ex.GetType().Name}");
-                _fileLogger?.Error($"Stack trace: {ex.StackTrace}");
                 Logger.Error(ex, "ControlUp: Error switching to fullscreen");
             }
         }

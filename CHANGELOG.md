@@ -1,5 +1,44 @@
 # ControlUp Changelog
 
+## Version 2.1.0 (January 22, 2026)
+
+### Breaking Changes
+- **Requires Playnite 11+** with SDL controller support
+- Users must enable "Controller input" in Playnite Desktop mode settings
+
+### Major Changes
+- **SDK-Based Controller Input**: Complete architectural rewrite using Playnite's `OnDesktopControllerButtonStateChanged` callback
+  - Zero polling overhead - events pushed by Playnite's SDL layer
+  - Works with all controller types: Xbox, PlayStation, Nintendo, third-party
+  - No custom threads or timers for input detection
+
+### New Features
+- **New Connection Only Mode** (Now Default): Only triggers popup on newly connected controllers
+  - Avoids annoying popup when switching back from Fullscreen to Desktop
+  - Recommended for most users
+- **Single Button Hotkeys**: Guide, Start, or Back buttons can trigger fullscreen directly
+- **HID Controller Detection**: Cross-platform detection for connection monitoring (Xbox, PlayStation, Nintendo, 8BitDo)
+
+### Improvements
+- **Reliable Mode Switching**: Fixed fullscreen launch using Playnite's internal mechanism
+  - Properly releases database lock before launching Fullscreen app
+  - Uses `--nolibupdate --startfullscreen --masterinstance --hidesplashscreen` arguments
+- **Better Enum Display**: Settings dropdowns now show descriptive text instead of enum names
+- **Developer Documentation**: Added `docs/` folder with architecture and SDK reference
+
+### Removed
+- `GamingInputWrapper.cs` - No longer needed (SDL handles all controllers)
+- `DirectInputWrapper.cs` - No longer needed
+- `RawInputWrapper.cs` - No longer needed
+- Background polling threads - Replaced by SDK callbacks
+
+### Technical
+- Playnite SDK with SDL support (local DLL, not NuGet)
+- HashSet-based button tracking for O(1) combo detection
+- Event-driven architecture with no busy-waiting
+
+---
+
 ## Version 1.0.1 (January 20, 2026)
 
 ### Features
