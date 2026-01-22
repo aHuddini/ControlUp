@@ -26,8 +26,12 @@ namespace ControlUp
         private bool _controllerWasConnected = false;
         private string _lastControllerName = null;
 
-        // Popup state
-        private bool _popupShowing = false;
+        // Popup state - controls SDL ownership
+        // IMPORTANT: SDL is not thread-safe. Only one component should use SDL at a time.
+        // When _popupShowing is true, the dialog owns SDL exclusively.
+        private volatile bool _popupShowing = false;
+        private DateTime _popupClosedTime = DateTime.MinValue;
+        private const int SDL_COOLDOWN_MS = 500; // Wait after popup closes before using SDL
 
         // Hotkey tracking
         private volatile bool _hotkeyWasTriggered = false;
@@ -49,6 +53,13 @@ namespace ControlUp
                 _fileLogger = new FileLogger(extensionPath);
                 var version = Assembly.GetExecutingAssembly().GetName().Version;
                 _fileLogger.Info($"=== ControlUp v{version} Starting ===");
+
+                // Share logger with static classes for diagnostics
+                ControllerDetector.Logger = _fileLogger;
+                DirectInputWrapper.Logger = _fileLogger;
+                SdlControllerWrapper.Logger = _fileLogger;
+                ControlUp.Dialogs.ControllerDetectedDialog.Logger = _fileLogger;
+                _fileLogger.Info("Loggers initialized for ControllerDetector, DirectInputWrapper, SDL, and Dialog");
             }
             catch
             {
@@ -168,11 +179,13 @@ namespace ControlUp
 
             if (needsConnectionMonitoring)
             {
-                var interval = Settings.Settings.HotkeyPollingIntervalMs;
-                _connectionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(interval) };
+                // Connection monitoring runs at a slower interval than hotkey polling
+                // to reduce resource usage - controller connections don't need sub-second detection
+                const int CONNECTION_CHECK_INTERVAL_MS = 1000;
+                _connectionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(CONNECTION_CHECK_INTERVAL_MS) };
                 _connectionTimer.Tick += OnConnectionTimerTick;
                 _connectionTimer.Start();
-                _fileLogger?.Info($"Started connection monitoring ({interval}ms interval)");
+                _fileLogger?.Info($"Started connection monitoring ({CONNECTION_CHECK_INTERVAL_MS}ms interval)");
             }
         }
 
@@ -202,21 +215,36 @@ namespace ControlUp
                 _connectionTimer = null;
             }
 
+            // SDL DISABLED FOR TESTING
+            // SdlControllerWrapper.Shutdown();
+
             _fileLogger?.Info("Stopped monitoring");
         }
 
         private void HotkeyPollingLoop(int intervalMs, CancellationToken token)
         {
-            // Initialize SDL for hotkey detection
-            bool sdlInitialized = false;
-            try
-            {
-                sdlInitialized = SdlControllerWrapper.Initialize();
-            }
-            catch { }
+            // Note: We primarily use XInput for hotkey detection since it's thread-safe.
+            // SDL is used as fallback for non-XInput controllers (like DualSense via Bluetooth).
+            // SDL calls are protected by locks but we avoid calling it when dialog is open
+            // since the dialog also uses SDL for navigation.
+
+            int consecutiveErrors = 0;
+            const int MAX_CONSECUTIVE_ERRORS = 10;
+            int loopIterations = 0;
+            DateTime lastLoopLog = DateTime.Now;
+
+            _fileLogger?.Info($"[HotkeyLoop] Started with {intervalMs}ms interval");
 
             while (!token.IsCancellationRequested)
             {
+                loopIterations++;
+
+                // Log every 30 seconds
+                if ((DateTime.Now - lastLoopLog).TotalSeconds >= 30)
+                {
+                    lastLoopLog = DateTime.Now;
+                    _fileLogger?.Debug($"[HotkeyLoop] {loopIterations} iterations completed");
+                }
                 try
                 {
                     if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing)
@@ -228,17 +256,25 @@ namespace ControlUp
                     bool hotkeyPressed = false;
                     string controllerName = null;
 
-                    // Check XInput controllers first
+                    // Check XInput controllers (use GetStateEx for Guide button support)
+                    // XInput is thread-safe and works for Xbox controllers + many third-party controllers
                     ushort xinputButtons = 0;
                     bool hasXInputController = false;
 
                     for (uint slot = 0; slot < 4; slot++)
                     {
-                        XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
-                        if (XInputWrapper.GetState(slot, ref state) == XInputWrapper.ERROR_SUCCESS)
+                        try
                         {
-                            hasXInputController = true;
-                            xinputButtons |= state.Gamepad.wButtons;
+                            XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
+                            if (XInputWrapper.GetStateEx(slot, ref state) == XInputWrapper.ERROR_SUCCESS)
+                            {
+                                hasXInputController = true;
+                                xinputButtons |= state.Gamepad.wButtons;
+                            }
+                        }
+                        catch
+                        {
+                            // Individual slot read failed, continue to next
                         }
                     }
 
@@ -247,22 +283,36 @@ namespace ControlUp
                         hotkeyPressed = IsHotkeyPressed(xinputButtons, Settings.Settings.HotkeyCombo);
                         if (hotkeyPressed)
                         {
-                            controllerName = XInputWrapper.GetControllerName();
+                            try
+                            {
+                                controllerName = XInputWrapper.GetControllerName();
+                            }
+                            catch
+                            {
+                                controllerName = "Xbox Controller";
+                            }
                         }
                     }
 
-                    // Check SDL if XInput didn't find the hotkey (for non-XInput controllers like DualSense)
-                    // or if using Guide button hotkeys (XInput doesn't expose Guide)
-                    if (!hotkeyPressed && sdlInitialized)
+                    // Use HID for PlayStation controllers (DualSense/DualShock) instead of SDL
+                    // HID reading uses the Windows HID API directly - no resource leaks
+                    if (!hotkeyPressed && !_popupShowing)
                     {
-                        var sdlReading = SdlControllerWrapper.GetCurrentReading();
-                        if (sdlReading.IsValid)
+                        try
                         {
-                            hotkeyPressed = IsSdlHotkeyPressed(sdlReading.Buttons, Settings.Settings.HotkeyCombo);
-                            if (hotkeyPressed)
+                            var hidReading = DirectInputWrapper.GetHidControllerReading();
+                            if (hidReading.IsValid)
                             {
-                                controllerName = SdlControllerWrapper.GetControllerName() ?? "Controller";
+                                hotkeyPressed = IsHidHotkeyPressed(hidReading, Settings.Settings.HotkeyCombo);
+                                if (hotkeyPressed)
+                                {
+                                    controllerName = ControllerDetector.GetControllerName(xinputOnly: false) ?? "PlayStation Controller";
+                                }
                             }
+                        }
+                        catch (Exception hidEx)
+                        {
+                            _fileLogger?.Error($"HID error in hotkey loop: {hidEx.Message}");
                         }
                     }
 
@@ -276,33 +326,62 @@ namespace ControlUp
                         _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} pressed (Controller: {controllerName})");
 
                         string finalName = controllerName;
-                        Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                        var dispatcher = Application.Current?.Dispatcher;
+                        if (dispatcher != null && !dispatcher.HasShutdownStarted)
                         {
-                            TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, finalName);
-                        }));
+                            dispatcher.BeginInvoke(new Action(() =>
+                            {
+                                TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, finalName);
+                            }));
+                        }
                     }
+
+                    // Reset error counter on successful iteration
+                    consecutiveErrors = 0;
                 }
                 catch (Exception ex)
                 {
-                    _fileLogger?.Error($"Hotkey polling error: {ex.Message}");
+                    consecutiveErrors++;
+                    _fileLogger?.Error($"Hotkey polling error ({consecutiveErrors}): {ex.Message}");
+
+                    // If we hit too many consecutive errors, slow down to prevent CPU spin
+                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS)
+                    {
+                        _fileLogger?.Error("Too many consecutive errors in hotkey loop, backing off...");
+                        Thread.Sleep(1000); // Back off for 1 second
+                        consecutiveErrors = 0;
+                    }
                 }
 
                 Thread.Sleep(intervalMs);
             }
         }
 
+        // Track connection timer ticks for diagnostics
+        private int _connectionTimerTickCount = 0;
+        private DateTime _pluginStartTime = DateTime.Now;
+
         private void OnConnectionTimerTick(object sender, EventArgs e)
         {
-            if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen)
-                return;
+            _connectionTimerTickCount++;
 
-            if (_popupShowing)
+            try
             {
-                // Don't log every tick, this would spam
-                return;
-            }
+                if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen)
+                    return;
 
-            CheckControllerState();
+                if (_popupShowing)
+                {
+                    // Don't log every tick, this would spam
+                    return;
+                }
+
+                CheckControllerState();
+            }
+            catch (Exception ex)
+            {
+                _fileLogger?.Error($"Connection timer error: {ex.Message}");
+            }
         }
 
         // For verbose debugging - track last logged state to avoid spam
@@ -322,11 +401,12 @@ namespace ControlUp
 
             var state = GetControllerStateForMode(triggerMode);
 
-            // Verbose logging every 5 seconds for debugging
-            if (Settings.Settings.EnableLogging && (DateTime.Now - _lastVerboseLog).TotalSeconds >= 5)
+            // Verbose logging every 10 seconds for debugging
+            if (Settings.Settings.EnableLogging && (DateTime.Now - _lastVerboseLog).TotalSeconds >= 10)
             {
                 _lastVerboseLog = DateTime.Now;
-                _fileLogger?.Info($"[Poll] Connected={state.IsConnected}, Name={state.Name}, Source={state.Source}, WasConnected={_controllerWasConnected}");
+                var uptime = (DateTime.Now - _pluginStartTime).TotalSeconds;
+                _fileLogger?.Info($"[Poll] tick#{_connectionTimerTickCount}, uptime={uptime:F0}s, Connected={state.IsConnected}, Name={state.Name}, Source={state.Source}, WasConnected={_controllerWasConnected}");
             }
 
             // Detect NEW connection
@@ -349,6 +429,7 @@ namespace ControlUp
         {
             switch (hotkey)
             {
+                // Combo hotkeys
                 case ControllerHotkey.StartPlusRB:
                     return (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0 &&
                            (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
@@ -364,12 +445,26 @@ namespace ControlUp
                 case ControllerHotkey.BackPlusLB:
                     return (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0 &&
                            (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
-                // Guide button hotkeys - XInput doesn't expose Guide, always return false
+                // Guide button combo hotkeys - available via XInputGetStateEx
                 case ControllerHotkey.GuidePlusStart:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0;
                 case ControllerHotkey.GuidePlusBack:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0;
                 case ControllerHotkey.GuidePlusRB:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
                 case ControllerHotkey.GuidePlusLB:
-                    return false;
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
+                // Single button hotkeys
+                case ControllerHotkey.Guide:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0;
+                case ControllerHotkey.Back:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0;
+                case ControllerHotkey.Start:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0;
                 default:
                     return false;
             }
@@ -379,6 +474,7 @@ namespace ControlUp
         {
             switch (hotkey)
             {
+                // Combo hotkeys
                 case ControllerHotkey.StartPlusRB:
                     return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0 &&
                            (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
@@ -394,6 +490,7 @@ namespace ControlUp
                 case ControllerHotkey.BackPlusLB:
                     return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0 &&
                            (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
+                // Guide button combo hotkeys
                 case ControllerHotkey.GuidePlusStart:
                     return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
                            (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
@@ -406,6 +503,52 @@ namespace ControlUp
                 case ControllerHotkey.GuidePlusLB:
                     return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
                            (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
+                // Single button hotkeys
+                case ControllerHotkey.Guide:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0;
+                case ControllerHotkey.Back:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0;
+                case ControllerHotkey.Start:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
+                default:
+                    return false;
+            }
+        }
+
+        private bool IsHidHotkeyPressed(DirectInputWrapper.HidControllerReading reading, ControllerHotkey hotkey)
+        {
+            // PlayStation button mapping:
+            // Options = Start/Menu, Share = Back/View, PS = Guide
+            // R1 = RB, L1 = LB
+            switch (hotkey)
+            {
+                // Combo hotkeys
+                case ControllerHotkey.StartPlusRB:
+                    return reading.Options && reading.R1;
+                case ControllerHotkey.StartPlusLB:
+                    return reading.Options && reading.L1;
+                case ControllerHotkey.BackPlusStart:
+                    return reading.Share && reading.Options;
+                case ControllerHotkey.BackPlusRB:
+                    return reading.Share && reading.R1;
+                case ControllerHotkey.BackPlusLB:
+                    return reading.Share && reading.L1;
+                // Guide button combo hotkeys
+                case ControllerHotkey.GuidePlusStart:
+                    return reading.PS && reading.Options;
+                case ControllerHotkey.GuidePlusBack:
+                    return reading.PS && reading.Share;
+                case ControllerHotkey.GuidePlusRB:
+                    return reading.PS && reading.R1;
+                case ControllerHotkey.GuidePlusLB:
+                    return reading.PS && reading.L1;
+                // Single button hotkeys
+                case ControllerHotkey.Guide:
+                    return reading.PS;
+                case ControllerHotkey.Back:
+                    return reading.Share;
+                case ControllerHotkey.Start:
+                    return reading.Options;
                 default:
                     return false;
             }
@@ -413,19 +556,27 @@ namespace ControlUp
 
         private void DelayedTrigger(int delayMs, Action action)
         {
-            var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(delayMs) };
-            timer.Tick += (s, e) =>
+            DispatcherTimer timer = null;
+            timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(delayMs) };
+            EventHandler handler = null;
+            handler = (s, e) =>
             {
                 timer.Stop();
+                timer.Tick -= handler; // Unhook to allow GC
                 action();
             };
+            timer.Tick += handler;
             timer.Start();
         }
 
         private void TriggerFullscreenSwitch(FullscreenTriggerSource source, string controllerName)
         {
             _fileLogger?.Info($"TriggerFullscreenSwitch called: source={source}, controller={controllerName}");
+
+            // Set popup flag BEFORE any SDL operations and give hotkey loop time to notice
+            // This ensures exclusive SDL access for the dialog
             _popupShowing = true;
+            Thread.Sleep(150); // Wait for hotkey loop to exit SDL section
 
             try
             {
@@ -464,8 +615,13 @@ namespace ControlUp
             }
             finally
             {
+                _popupClosedTime = DateTime.Now;
                 _popupShowing = false;
                 _fileLogger?.Info("Popup closed, _popupShowing = false");
+
+                // Hint to GC to collect dialog resources
+                // This helps prevent handle accumulation from repeated dialog opens
+                GC.Collect(0, GCCollectionMode.Optimized);
             }
         }
 

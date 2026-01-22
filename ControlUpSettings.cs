@@ -264,6 +264,7 @@ namespace ControlUp
 
     public enum ControllerHotkey
     {
+        // Combo hotkeys
         [Description("Start + RB (Options + R1)")]
         StartPlusRB,
 
@@ -289,7 +290,17 @@ namespace ControlUp
         GuidePlusRB,
 
         [Description("Guide + LB (PS + L1)")]
-        GuidePlusLB
+        GuidePlusLB,
+
+        // Single button hotkeys
+        [Description("Guide (PS/Xbox Button)")]
+        Guide,
+
+        [Description("Back (Share/View)")]
+        Back,
+
+        [Description("Start (Options/Menu)")]
+        Start
     }
 
     public enum FullscreenTriggerSource

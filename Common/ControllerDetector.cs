@@ -1,19 +1,20 @@
+using System;
+
 namespace ControlUp.Common
 {
     /// <summary>
-    /// Unified controller detection. Priority order:
-    /// 1. Windows.Gaming.Input (latest API, best for modern controllers like DualSense)
-    /// 2. XInput (Xbox controllers and XInput-compatible devices)
-    /// 3. HID enumeration (fallback for other controllers)
+    /// Unified controller detection using XInput and DirectInput (HID).
+    /// XInput: Xbox controllers and XInput-compatible devices (fast, no handle leaks)
+    /// DirectInput: All other controllers including DualSense, DualShock, etc. (checked less frequently)
+    /// SDL is used separately for reading input from non-XInput controllers.
     /// </summary>
     public static class ControllerDetector
     {
         public enum DetectionSource
         {
             None,
-            WindowsGamingInput,
             XInput,
-            HidEnumeration
+            DirectInput
         }
 
         public class ControllerState
@@ -24,6 +25,19 @@ namespace ControlUp.Common
             public DetectionSource Source { get; set; }
         }
 
+        // Static logger for diagnostics
+        public static FileLogger Logger { get; set; }
+
+        // Cache for DirectInput detection to avoid handle exhaustion
+        // DirectInput/HID enumeration creates handles on each call
+        private static ControllerState _cachedDirectInputState = null;
+        private static DateTime _lastDirectInputCheck = DateTime.MinValue;
+        private const int DIRECTINPUT_CHECK_INTERVAL_MS = 10000; // Check every 10 seconds to avoid handle leaks
+
+        // Track call counts for diagnostics
+        private static int _getControllerStateCallCount = 0;
+        private static int _directInputRefreshCount = 0;
+
         /// <summary>
         /// Check if any XInput controller is connected.
         /// </summary>
@@ -33,47 +47,45 @@ namespace ControlUp.Common
         }
 
         /// <summary>
-        /// Check if any controller is connected using all available APIs.
-        /// Windows.Gaming.Input first, then XInput, then HID enumeration.
+        /// Check if any controller is connected using XInput and DirectInput.
+        /// XInput is checked every time (no handle leaks).
+        /// DirectInput uses the same cache as GetControllerState to avoid double enumeration.
         /// </summary>
         public static bool IsAnyControllerConnected()
         {
-            // Windows.Gaming.Input first (latest API, best for modern controllers)
-            if (GamingInputWrapper.IsControllerConnected())
-                return true;
-
-            // XInput second (Xbox controllers)
+            // XInput first - always safe to call frequently
             if (XInputWrapper.IsControllerConnected())
                 return true;
 
-            // HID enumeration as last resort
-            if (DirectInputWrapper.IsControllerConnected())
-                return true;
-
-            return false;
+            // Use GetControllerState to leverage single cache (avoids double enumeration)
+            var state = GetControllerState(xinputOnly: false);
+            return state.IsConnected;
         }
 
         /// <summary>
         /// Get full controller state with name and detection source.
-        /// Windows.Gaming.Input is checked first for modern controller support.
+        /// XInput is checked every time. DirectInput uses cached results.
         /// </summary>
         public static ControllerState GetControllerState(bool xinputOnly = false)
         {
+            _getControllerStateCallCount++;
+
+            // Always check XInput first - it's fast and doesn't leak handles
+            var xinputInfo = XInputWrapper.GetControllerInfo();
+            if (xinputInfo.Connected)
+            {
+                return new ControllerState
+                {
+                    IsConnected = true,
+                    Name = xinputInfo.Name,
+                    IsWireless = xinputInfo.IsWireless,
+                    Source = DetectionSource.XInput
+                };
+            }
+
+            // If XInput-only mode, don't check DirectInput
             if (xinputOnly)
             {
-                // XInput-only mode requested
-                var xinputInfo = XInputWrapper.GetControllerInfo();
-                if (xinputInfo.Connected)
-                {
-                    return new ControllerState
-                    {
-                        IsConnected = true,
-                        Name = xinputInfo.Name,
-                        IsWireless = xinputInfo.IsWireless,
-                        Source = DetectionSource.XInput
-                    };
-                }
-
                 return new ControllerState
                 {
                     IsConnected = false,
@@ -81,49 +93,55 @@ namespace ControlUp.Common
                 };
             }
 
-            // Windows.Gaming.Input first (latest API, best for modern controllers like DualSense)
-            if (GamingInputWrapper.IsControllerConnected())
+            // For non-XInput controllers, use DirectInput with caching
+            var now = DateTime.Now;
+            double msSinceLastCheck = (now - _lastDirectInputCheck).TotalMilliseconds;
+            bool needsRefresh = msSinceLastCheck >= DIRECTINPUT_CHECK_INTERVAL_MS;
+
+            if (needsRefresh)
             {
-                var name = GamingInputWrapper.GetControllerName();
-                return new ControllerState
-                {
-                    IsConnected = true,
-                    Name = name ?? "Game Controller",
-                    IsWireless = false, // Can't reliably detect
-                    Source = DetectionSource.WindowsGamingInput
-                };
+                _directInputRefreshCount++;
+                Logger?.Info($"[ControllerDetector] DirectInput REFRESH #{_directInputRefreshCount} (call #{_getControllerStateCallCount}, {msSinceLastCheck:F0}ms since last check)");
+                _lastDirectInputCheck = now;
+                _cachedDirectInputState = GetDirectInputControllerState();
             }
 
-            // XInput second (Xbox controllers)
-            var xinputState = XInputWrapper.GetControllerInfo();
-            if (xinputState.Connected)
+            // Log stats every 100 calls
+            if (_getControllerStateCallCount % 100 == 0)
             {
-                return new ControllerState
-                {
-                    IsConnected = true,
-                    Name = xinputState.Name,
-                    IsWireless = xinputState.IsWireless,
-                    Source = DetectionSource.XInput
-                };
+                Logger?.Debug($"[ControllerDetector] Stats: {_getControllerStateCallCount} calls, {_directInputRefreshCount} DirectInput refreshes");
             }
 
-            // HID enumeration last resort
-            if (DirectInputWrapper.IsControllerConnected())
+            return _cachedDirectInputState ?? new ControllerState { IsConnected = false, Source = DetectionSource.None };
+        }
+
+        /// <summary>
+        /// Internal method to check DirectInput/HID controllers.
+        /// Single enumeration to avoid double handle creation.
+        /// </summary>
+        private static ControllerState GetDirectInputControllerState()
+        {
+            try
             {
+                // Single call to get controller names - avoids double enumeration
+                // GetConnectedControllerNames already does the full HID enumeration
                 var controllers = DirectInputWrapper.GetConnectedControllerNames();
-                string name = "Controller";
                 if (controllers != null && controllers.Count > 0)
                 {
-                    name = controllers[0];
+                    string name = controllers[0];
+                    return new ControllerState
+                    {
+                        IsConnected = true,
+                        Name = name,
+                        IsWireless = name.ToLowerInvariant().Contains("wireless") ||
+                                     name.ToLowerInvariant().Contains("bluetooth"),
+                        Source = DetectionSource.DirectInput
+                    };
                 }
-
-                return new ControllerState
-                {
-                    IsConnected = true,
-                    Name = name,
-                    IsWireless = name.ToLowerInvariant().Contains("wireless"),
-                    Source = DetectionSource.HidEnumeration
-                };
+            }
+            catch
+            {
+                // DirectInput detection failed
             }
 
             return new ControllerState

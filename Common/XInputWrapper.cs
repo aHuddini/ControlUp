@@ -8,6 +8,10 @@ namespace ControlUp.Common
         [DllImport("xinput1_4.dll")]
         private static extern uint XInputGetState(uint dwUserIndex, ref XINPUT_STATE pState);
 
+        // Undocumented XInputGetStateEx (ordinal 100) - includes Guide button
+        [DllImport("xinput1_4.dll", EntryPoint = "#100")]
+        private static extern uint XInputGetStateEx(uint dwUserIndex, ref XINPUT_STATE pState);
+
         [DllImport("xinput1_4.dll")]
         private static extern uint XInputGetCapabilities(uint dwUserIndex, uint dwFlags, ref XINPUT_CAPABILITIES pCapabilities);
 
@@ -76,6 +80,7 @@ namespace ControlUp.Common
         public const ushort XINPUT_GAMEPAD_RIGHT_THUMB = 0x0080;
         public const ushort XINPUT_GAMEPAD_LEFT_SHOULDER = 0x0100;
         public const ushort XINPUT_GAMEPAD_RIGHT_SHOULDER = 0x0200;
+        public const ushort XINPUT_GAMEPAD_GUIDE = 0x0400;  // Only available via XInputGetStateEx
         public const ushort XINPUT_GAMEPAD_A = 0x1000;
         public const ushort XINPUT_GAMEPAD_B = 0x2000;
         public const ushort XINPUT_GAMEPAD_X = 0x4000;
@@ -84,6 +89,20 @@ namespace ControlUp.Common
         public static uint GetState(uint dwUserIndex, ref XINPUT_STATE pState)
         {
             return XInputGetState(dwUserIndex, ref pState);
+        }
+
+        /// <summary>Get controller state including Guide button (uses undocumented XInputGetStateEx).</summary>
+        public static uint GetStateEx(uint dwUserIndex, ref XINPUT_STATE pState)
+        {
+            try
+            {
+                return XInputGetStateEx(dwUserIndex, ref pState);
+            }
+            catch
+            {
+                // Fall back to standard GetState if XInputGetStateEx fails
+                return XInputGetState(dwUserIndex, ref pState);
+            }
         }
 
         /// <summary>Check if any XInput controller is connected.</summary>

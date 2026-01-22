@@ -81,9 +81,9 @@ namespace ControlUp
                 var sb = new StringBuilder();
                 sb.AppendLine("=== Controller Detection Results ===\n");
 
-                // Primary: XInput detection
+                // XInput detection (Xbox controllers)
                 var xinputInfo = XInputWrapper.GetControllerInfo();
-                sb.AppendLine("XInput API (Primary):");
+                sb.AppendLine("XInput (Xbox Controllers):");
                 if (xinputInfo.Connected)
                 {
                     string wireless = xinputInfo.IsWireless ? " [Wireless]" : "";
@@ -95,67 +95,71 @@ namespace ControlUp
                 }
                 sb.AppendLine();
 
-                // Secondary: Windows.Gaming.Input
-                sb.AppendLine("Windows.Gaming.Input API (Secondary):");
-                if (!GamingInputWrapper.IsAvailable)
+                // DirectInput/HID detection (PlayStation & other controllers)
+                sb.AppendLine("DirectInput/HID (PlayStation & Other Controllers):");
+                try
                 {
-                    sb.AppendLine("  • API not available on this system");
-                }
-                else
-                {
-                    int count = GamingInputWrapper.GetControllerCount();
-                    if (count > 0)
+                    var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
+                    if (hidControllers.Any())
                     {
-                        var name = GamingInputWrapper.GetControllerName();
-                        sb.AppendLine($"  ✓ {name ?? "Game Controller"} ({count} detected)");
+                        foreach (var name in hidControllers.Take(5))
+                        {
+                            sb.AppendLine($"  ✓ {name}");
+                        }
+                        if (hidControllers.Count > 5)
+                        {
+                            sb.AppendLine($"  ... and {hidControllers.Count - 5} more");
+                        }
                     }
                     else
                     {
-                        sb.AppendLine("  • No controllers detected via this API");
+                        sb.AppendLine("  • No HID game controllers detected");
                     }
+                }
+                catch (Exception hidEx)
+                {
+                    sb.AppendLine($"  • HID error: {hidEx.Message}");
                 }
                 sb.AppendLine();
 
-                // Fallback: HID enumeration
-                sb.AppendLine("HID Enumeration (Fallback):");
-                var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
-                if (hidControllers.Any())
+                // SDL status (for input reading)
+                sb.AppendLine("SDL (Input Reading):");
+                try
                 {
-                    foreach (var name in hidControllers.Take(5)) // Limit to 5
+                    if (SdlControllerWrapper.Initialize() || SdlControllerWrapper.IsAvailable)
                     {
-                        sb.AppendLine($"  • {name}");
+                        if (SdlControllerWrapper.IsControllerConnected())
+                        {
+                            var sdlName = SdlControllerWrapper.GetControllerName();
+                            sb.AppendLine($"  ✓ Ready: {sdlName ?? "Game Controller"}");
+                        }
+                        else
+                        {
+                            sb.AppendLine("  • SDL initialized, no controller open");
+                        }
                     }
-                    if (hidControllers.Count > 5)
+                    else
                     {
-                        sb.AppendLine($"  ... and {hidControllers.Count - 5} more");
+                        sb.AppendLine("  • SDL not available");
                     }
                 }
-                else
+                catch (Exception sdlEx)
                 {
-                    sb.AppendLine("  • No HID game controllers detected");
+                    sb.AppendLine($"  • SDL error: {sdlEx.Message}");
                 }
                 sb.AppendLine();
 
-                // Diagnostic: Show Sony/PlayStation device paths
-                sb.AppendLine("PlayStation Device Paths (Diagnostic):");
-                var allPaths = DirectInputWrapper.GetAllHidDevicePaths();
-                var sonyPaths = allPaths.Where(p => p.ToLowerInvariant().Contains("054c") ||
-                                                     p.ToLowerInvariant().Contains("sony") ||
-                                                     p.ToLowerInvariant().Contains("dualsense") ||
-                                                     p.ToLowerInvariant().Contains("dualshock")).ToList();
-                if (sonyPaths.Any())
+                // Summary
+                sb.AppendLine("Summary:");
+                var state = ControllerDetector.GetControllerState(false);
+                if (state.IsConnected)
                 {
-                    foreach (var path in sonyPaths.Take(3))
-                    {
-                        // Show shortened path for readability
-                        var shortPath = path.Length > 80 ? path.Substring(0, 80) + "..." : path;
-                        sb.AppendLine($"  • {shortPath}");
-                    }
+                    sb.AppendLine($"  ✓ Active controller: {state.Name}");
+                    sb.AppendLine($"    Detection source: {state.Source}");
                 }
                 else
                 {
-                    sb.AppendLine("  • No Sony/PlayStation HID devices found");
-                    sb.AppendLine($"  (Total HID devices: {allPaths.Count})");
+                    sb.AppendLine("  • No controllers currently detected");
                 }
 
                 DetectedControllersText = sb.ToString();

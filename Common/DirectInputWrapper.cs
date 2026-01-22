@@ -10,6 +10,8 @@ namespace ControlUp.Common
     /// <summary>Windows HID/SetupAPI wrapper for game controller enumeration and input reading.</summary>
     public static class DirectInputWrapper
     {
+        // Static logger for diagnostics
+        public static FileLogger Logger { get; set; }
         // HID API imports for reading controller input
         [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Auto)]
         private static extern SafeFileHandle CreateFile(
@@ -525,23 +527,46 @@ namespace ControlUp.Common
                    (lower.Contains("vid:{") && lower.Contains("pid:dev"));
         }
 
+        private static readonly IntPtr INVALID_HANDLE_VALUE = new IntPtr(-1);
+
+        // Track enumeration count for diagnostics
+        private static int _enumerationCount = 0;
+
         public static List<string> GetConnectedControllers()
         {
             var controllers = new List<string>();
             IntPtr deviceInfoSet = IntPtr.Zero;
+            _enumerationCount++;
+            int thisEnumeration = _enumerationCount;
+
+            Logger?.Debug($"[DirectInput] GetConnectedControllers START (enumeration #{thisEnumeration})");
 
             try
             {
                 deviceInfoSet = SetupDiGetClassDevs(ref GUID_DEVINTERFACE_HID, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
-                if (deviceInfoSet == IntPtr.Zero) return controllers;
+
+                if (deviceInfoSet == IntPtr.Zero)
+                {
+                    Logger?.Warn($"[DirectInput] SetupDiGetClassDevs returned IntPtr.Zero (enumeration #{thisEnumeration})");
+                    return controllers;
+                }
+                if (deviceInfoSet == INVALID_HANDLE_VALUE)
+                {
+                    Logger?.Warn($"[DirectInput] SetupDiGetClassDevs returned INVALID_HANDLE_VALUE (enumeration #{thisEnumeration})");
+                    return controllers;
+                }
+
+                Logger?.Debug($"[DirectInput] SetupDiGetClassDevs returned handle 0x{deviceInfoSet.ToInt64():X} (enumeration #{thisEnumeration})");
 
                 SP_DEVICE_INTERFACE_DATA deviceInterfaceData = new SP_DEVICE_INTERFACE_DATA();
                 deviceInterfaceData.cbSize = (uint)Marshal.SizeOf(deviceInterfaceData);
 
                 uint memberIndex = 0;
+                int devicesEnumerated = 0;
 
                 while (SetupDiEnumDeviceInterfaces(deviceInfoSet, IntPtr.Zero, ref GUID_DEVINTERFACE_HID, memberIndex, ref deviceInterfaceData))
                 {
+                    devicesEnumerated++;
                     uint requiredSize = 0;
                     SetupDiGetDeviceInterfaceDetail(deviceInfoSet, ref deviceInterfaceData, IntPtr.Zero, 0, ref requiredSize, IntPtr.Zero);
 
@@ -570,19 +595,23 @@ namespace ControlUp.Common
 
                     memberIndex++;
                 }
+
+                Logger?.Debug($"[DirectInput] Enumerated {devicesEnumerated} HID devices, found {controllers.Count} controllers (enumeration #{thisEnumeration})");
             }
-            catch
+            catch (Exception ex)
             {
-                // Enumeration failed
+                Logger?.Error($"[DirectInput] Enumeration failed (enumeration #{thisEnumeration}): {ex.Message}");
             }
             finally
             {
-                if (deviceInfoSet != IntPtr.Zero)
+                if (deviceInfoSet != IntPtr.Zero && deviceInfoSet != INVALID_HANDLE_VALUE)
                 {
-                    SetupDiDestroyDeviceInfoList(deviceInfoSet);
+                    bool destroyed = SetupDiDestroyDeviceInfoList(deviceInfoSet);
+                    Logger?.Debug($"[DirectInput] SetupDiDestroyDeviceInfoList returned {destroyed} for handle 0x{deviceInfoSet.ToInt64():X} (enumeration #{thisEnumeration})");
                 }
             }
 
+            Logger?.Debug($"[DirectInput] GetConnectedControllers END (enumeration #{thisEnumeration})");
             return controllers;
         }
 
@@ -595,7 +624,7 @@ namespace ControlUp.Common
             try
             {
                 deviceInfoSet = SetupDiGetClassDevs(ref GUID_DEVINTERFACE_HID, IntPtr.Zero, IntPtr.Zero, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
-                if (deviceInfoSet == IntPtr.Zero) return devices;
+                if (deviceInfoSet == IntPtr.Zero || deviceInfoSet == INVALID_HANDLE_VALUE) return devices;
 
                 SP_DEVICE_INTERFACE_DATA deviceInterfaceData = new SP_DEVICE_INTERFACE_DATA();
                 deviceInterfaceData.cbSize = (uint)Marshal.SizeOf(deviceInterfaceData);
@@ -635,7 +664,7 @@ namespace ControlUp.Common
             }
             finally
             {
-                if (deviceInfoSet != IntPtr.Zero)
+                if (deviceInfoSet != IntPtr.Zero && deviceInfoSet != INVALID_HANDLE_VALUE)
                 {
                     SetupDiDestroyDeviceInfoList(deviceInfoSet);
                 }

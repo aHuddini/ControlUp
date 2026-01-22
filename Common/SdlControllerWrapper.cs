@@ -8,11 +8,26 @@ namespace ControlUp.Common
     /// <summary>SDL2 wrapper for controller input - consistent with Playnite's fullscreen mode.</summary>
     public static class SdlControllerWrapper
     {
+        // Static logger for diagnostics
+        public static FileLogger Logger { get; set; }
+
         private static readonly object _lock = new object();
         private static bool _initialized = false;
         private static bool _isAvailable = false;
         private static IntPtr _gameController = IntPtr.Zero;
-        private static int _controllerIndex = -1;
+        private static int _controllerInstanceId = -1; // Track by instance ID, not joystick index
+
+        // Tracking for diagnostics
+        private static int _updateCount = 0;
+        private static int _getCurrentReadingCount = 0;
+        private static int _openControllerCount = 0;
+        private static int _closeControllerCount = 0;
+        private static DateTime _lastStatsLog = DateTime.MinValue;
+
+        // Caching to reduce SDL call frequency
+        private static SdlControllerReading _cachedReading = null;
+        private static DateTime _lastReadingTime = DateTime.MinValue;
+        private const int SDL_READING_CACHE_MS = 16; // ~60 FPS like Playnite
 
         /// <summary>Controller button flags matching SDL_GameControllerButton.</summary>
         [Flags]
@@ -71,17 +86,34 @@ namespace ControlUp.Common
                     // Initialize SDL with game controller support
                     if (SDL.SDL_Init(SDL.SDL_INIT_GAMECONTROLLER | SDL.SDL_INIT_JOYSTICK) < 0)
                     {
+                        Logger?.Error($"[SDL] SDL_Init failed: {SDL.SDL_GetError()}");
                         return false;
                     }
 
                     // Try to load Playnite's gamecontrollerdb.txt if available
                     TryLoadControllerDatabase();
 
+                    // Disable RawInput for joysticks (Playnite workaround for controller issues)
+                    // https://github.com/libsdl-org/SDL/issues/13047
+                    SDL.SDL_SetHint("SDL_JOYSTICK_RAWINPUT", "0");
+
+                    // Disable Windows.Gaming.Input - it creates threads that leak TLS
+                    // https://github.com/libsdl-org/SDL/issues/13291
+                    SDL.SDL_SetHint("SDL_JOYSTICK_WGI", "0");
+
+                    // Disable HIDAPI to reduce resource usage (XInput will still work)
+                    SDL.SDL_SetHint("SDL_JOYSTICK_HIDAPI", "0");
+
+                    // Disable SDL game controller events - we poll manually like Playnite does
+                    SDL.SDL_GameControllerEventState(SDL.SDL_IGNORE);
+
                     _isAvailable = true;
+                    Logger?.Info("[SDL] Initialized with RAWINPUT, WGI, and HIDAPI disabled");
                     return true;
                 }
-                catch
+                catch (Exception ex)
                 {
+                    Logger?.Error($"[SDL] Initialize failed: {ex.Message}");
                     _isAvailable = false;
                     return false;
                 }
@@ -139,8 +171,8 @@ namespace ControlUp.Common
 
                 try
                 {
-                    // Process events to update controller state
-                    SDL.SDL_PumpEvents();
+                    // Update controller state (like Playnite does)
+                    SDL.SDL_GameControllerUpdate();
 
                     int numJoysticks = SDL.SDL_NumJoysticks();
                     for (int i = 0; i < numJoysticks; i++)
@@ -168,7 +200,7 @@ namespace ControlUp.Common
 
                 try
                 {
-                    SDL.SDL_PumpEvents();
+                    SDL.SDL_GameControllerUpdate();
 
                     int numJoysticks = SDL.SDL_NumJoysticks();
                     for (int i = 0; i < numJoysticks; i++)
@@ -202,16 +234,15 @@ namespace ControlUp.Common
 
             try
             {
-                SDL.SDL_PumpEvents();
-
-                // Already have a valid controller?
-                if (_gameController != IntPtr.Zero && _controllerIndex >= 0)
+                // Already have a valid controller? Check by instance ID (stable identifier)
+                if (_gameController != IntPtr.Zero && _controllerInstanceId >= 0)
                 {
                     if (SDL.SDL_GameControllerGetAttached(_gameController) == SDL.SDL_bool.SDL_TRUE)
                     {
                         return true;
                     }
                     // Controller was disconnected
+                    Logger?.Debug($"[SDL] Controller instance {_controllerInstanceId} disconnected, closing handle");
                     CloseControllerInternal();
                 }
 
@@ -224,15 +255,19 @@ namespace ControlUp.Common
                         _gameController = SDL.SDL_GameControllerOpen(i);
                         if (_gameController != IntPtr.Zero)
                         {
-                            _controllerIndex = i;
+                            // Get the joystick and its instance ID (stable across re-enumeration)
+                            var joystick = SDL.SDL_GameControllerGetJoystick(_gameController);
+                            _controllerInstanceId = SDL.SDL_JoystickInstanceID(joystick);
+                            _openControllerCount++;
+                            Logger?.Debug($"[SDL] Opened controller #{_openControllerCount} at index {i}, instanceId={_controllerInstanceId}, handle=0x{_gameController.ToInt64():X}");
                             return true;
                         }
                     }
                 }
             }
-            catch
+            catch (Exception ex)
             {
-                // SDL call failed
+                Logger?.Error($"[SDL] OpenControllerInternal failed: {ex.Message}");
             }
             return false;
         }
@@ -250,13 +285,19 @@ namespace ControlUp.Common
         {
             if (_gameController != IntPtr.Zero)
             {
+                _closeControllerCount++;
+                Logger?.Debug($"[SDL] Closing controller #{_closeControllerCount}, instanceId={_controllerInstanceId}, handle=0x{_gameController.ToInt64():X}");
                 try
                 {
                     SDL.SDL_GameControllerClose(_gameController);
                 }
-                catch { }
+                catch (Exception ex)
+                {
+                    Logger?.Error($"[SDL] SDL_GameControllerClose failed: {ex.Message}");
+                }
                 _gameController = IntPtr.Zero;
-                _controllerIndex = -1;
+                _controllerInstanceId = -1;
+                _cachedReading = null; // Invalidate cache when controller closes
             }
         }
 
@@ -267,13 +308,31 @@ namespace ControlUp.Common
 
             lock (_lock)
             {
+                _getCurrentReadingCount++;
+
+                // Log stats every 30 seconds
+                if ((DateTime.Now - _lastStatsLog).TotalSeconds >= 30)
+                {
+                    _lastStatsLog = DateTime.Now;
+                    Logger?.Info($"[SDL] Stats: GetCurrentReading={_getCurrentReadingCount}, Updates={_updateCount}, Open={_openControllerCount}, Close={_closeControllerCount}");
+                }
+
+                // Return cached reading if still fresh (reduces SDL call frequency)
+                var now = DateTime.Now;
+                if (_cachedReading != null && _cachedReading.IsValid &&
+                    (now - _lastReadingTime).TotalMilliseconds < SDL_READING_CACHE_MS)
+                {
+                    return _cachedReading;
+                }
+
                 if (!_isAvailable) return result;
                 if (!OpenControllerInternal()) return result;
 
                 try
                 {
-                    // Process events to get latest state
-                    SDL.SDL_PumpEvents();
+                    // Update controller state (Playnite uses SDL_GameControllerUpdate, not PumpEvents)
+                    _updateCount++;
+                    SDL.SDL_GameControllerUpdate();
 
                     // Check if still attached
                     if (SDL.SDL_GameControllerGetAttached(_gameController) != SDL.SDL_bool.SDL_TRUE)
@@ -327,6 +386,10 @@ namespace ControlUp.Common
                     result.RightTrigger = SDL.SDL_GameControllerGetAxis(_gameController, SDL.SDL_GameControllerAxis.SDL_CONTROLLER_AXIS_TRIGGERRIGHT);
 
                     result.IsValid = true;
+
+                    // Cache the reading
+                    _cachedReading = result;
+                    _lastReadingTime = now;
                 }
                 catch
                 {
@@ -335,6 +398,15 @@ namespace ControlUp.Common
                 }
             }
             return result;
+        }
+
+        /// <summary>Invalidate the cached reading (call when controller state might have changed).</summary>
+        public static void InvalidateCache()
+        {
+            lock (_lock)
+            {
+                _cachedReading = null;
+            }
         }
     }
 }

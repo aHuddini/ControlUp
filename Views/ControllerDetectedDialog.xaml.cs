@@ -15,6 +15,11 @@ namespace ControlUp.Dialogs
     {
         public bool UserSelectedYes { get; private set; } = false;
 
+        // Static logger and dialog counter for diagnostics
+        public static FileLogger Logger { get; set; }
+        private static int _dialogCounter = 0;
+        private readonly int _dialogId;
+
         // Settings reference
         private readonly ControlUpSettings _settings;
         private readonly FullscreenTriggerSource _triggerSource;
@@ -24,13 +29,14 @@ namespace ControlUp.Dialogs
         private DispatcherTimer _autoCloseTimer;
         private int _remainingSeconds;
 
-        // Controller monitoring (SDL primary, XInput fallback)
+        // Controller monitoring (HID for PlayStation, XInput for Xbox)
         private CancellationTokenSource _controllerCts;
-        private SdlControllerWrapper.SdlButtons _lastSdlButtonState = SdlControllerWrapper.SdlButtons.None;
         private ushort _lastXInputButtonState = 0;
+        private DirectInputWrapper.HidControllerReading _lastHidReading = null;
         private int _selectedIndex = 0; // 0 = Yes, 1 = Cancel
         private bool _thumbstickWasCentered = true; // Track thumbstick state to prevent rapid switching
-        private const short THUMBSTICK_DEADZONE = 16000; // ~50% of max range
+        private const short THUMBSTICK_DEADZONE = 16000; // ~50% of max range for XInput (-32768 to 32767)
+        private const byte HID_THUMBSTICK_DEADZONE = 64; // ~25% from center (128) for HID (0-255)
 
         // Windows Composition API for blur
         [DllImport("user32.dll")]
@@ -74,6 +80,10 @@ namespace ControlUp.Dialogs
         // Constructor with settings
         public ControllerDetectedDialog(ControlUpSettings settings, FullscreenTriggerSource source, string controllerName = null)
         {
+            _dialogCounter++;
+            _dialogId = _dialogCounter;
+            Logger?.Info($"[Dialog] Creating dialog #{_dialogId} (source={source}, controller={controllerName})");
+
             _settings = settings ?? new ControlUpSettings();
             _triggerSource = source;
             _controllerName = controllerName;
@@ -276,21 +286,7 @@ namespace ControlUp.Dialogs
 
         private void InitializeControllerState()
         {
-            // Initialize SDL (primary - works with all controllers via Playnite's gamecontrollerdb.txt)
-            try
-            {
-                if (SdlControllerWrapper.Initialize())
-                {
-                    var sdlReading = SdlControllerWrapper.GetCurrentReading();
-                    if (sdlReading.IsValid)
-                    {
-                        _lastSdlButtonState = sdlReading.Buttons;
-                    }
-                }
-            }
-            catch { }
-
-            // Initialize XInput state (fallback)
+            // Initialize XInput state (Xbox controllers)
             try
             {
                 XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
@@ -298,6 +294,13 @@ namespace ControlUp.Dialogs
                 {
                     _lastXInputButtonState = state.Gamepad.wButtons;
                 }
+            }
+            catch { }
+
+            // Initialize HID state (PlayStation controllers)
+            try
+            {
+                _lastHidReading = DirectInputWrapper.GetHidControllerReading();
             }
             catch { }
         }
@@ -314,13 +317,13 @@ namespace ControlUp.Dialogs
                 {
                     try
                     {
-                        // Try SDL first (works with all controllers via gamecontrollerdb.txt)
-                        bool handled = PollSdlController();
+                        // Poll XInput (Xbox controllers) first
+                        bool handled = PollXInputController();
 
-                        // Fall back to XInput if SDL didn't handle input
+                        // If no XInput input, poll HID (PlayStation controllers)
                         if (!handled)
                         {
-                            PollXInputController();
+                            PollHidController();
                         }
 
                         await Task.Delay(50, _controllerCts.Token);
@@ -334,88 +337,9 @@ namespace ControlUp.Dialogs
             }, _controllerCts.Token);
         }
 
-        private bool PollSdlController()
+        private bool PollXInputController()
         {
-            if (!SdlControllerWrapper.IsAvailable) return false;
-
-            var reading = SdlControllerWrapper.GetCurrentReading();
-            if (!reading.IsValid) return false;
-
-            var currentButtons = reading.Buttons;
-            var pressedButtons = currentButtons & ~_lastSdlButtonState;
-
-            // Check thumbstick position (SDL uses -32768 to 32767)
-            bool thumbstickLeft = reading.LeftStickX < -THUMBSTICK_DEADZONE ||
-                                  reading.RightStickX < -THUMBSTICK_DEADZONE;
-            bool thumbstickRight = reading.LeftStickX > THUMBSTICK_DEADZONE ||
-                                   reading.RightStickX > THUMBSTICK_DEADZONE;
-            bool thumbstickCentered = !thumbstickLeft && !thumbstickRight;
-
             bool inputHandled = false;
-
-            // Handle thumbstick navigation (only trigger once per movement)
-            if (_thumbstickWasCentered && (thumbstickLeft || thumbstickRight))
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    _remainingSeconds = _settings.NotificationDurationSeconds;
-                    UpdateCountdown();
-
-                    _selectedIndex = _selectedIndex == 0 ? 1 : 0;
-                    UpdateButtonStyles();
-                    if (_selectedIndex == 0)
-                        YesButton.Focus();
-                    else
-                        CancelButton.Focus();
-                });
-                _thumbstickWasCentered = false;
-                inputHandled = true;
-            }
-            else if (thumbstickCentered)
-            {
-                _thumbstickWasCentered = true;
-            }
-
-            if (pressedButtons != SdlControllerWrapper.SdlButtons.None)
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    _remainingSeconds = _settings.NotificationDurationSeconds;
-                    UpdateCountdown();
-
-                    // D-pad left/right to switch selection
-                    if ((pressedButtons & (SdlControllerWrapper.SdlButtons.DPadLeft | SdlControllerWrapper.SdlButtons.DPadRight)) != 0)
-                    {
-                        _selectedIndex = _selectedIndex == 0 ? 1 : 0;
-                        UpdateButtonStyles();
-                        if (_selectedIndex == 0)
-                            YesButton.Focus();
-                        else
-                            CancelButton.Focus();
-                    }
-                    // A button (Cross on PlayStation) = confirm selection
-                    else if ((pressedButtons & SdlControllerWrapper.SdlButtons.A) != 0)
-                    {
-                        if (_selectedIndex == 0)
-                            YesButton_Click(this, new RoutedEventArgs());
-                        else
-                            CancelButton_Click(this, new RoutedEventArgs());
-                    }
-                    // B button (Circle on PlayStation) = cancel
-                    else if ((pressedButtons & SdlControllerWrapper.SdlButtons.B) != 0)
-                    {
-                        CancelButton_Click(this, new RoutedEventArgs());
-                    }
-                });
-                inputHandled = true;
-            }
-
-            _lastSdlButtonState = currentButtons;
-            return inputHandled;
-        }
-
-        private void PollXInputController()
-        {
             XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
             if (XInputWrapper.GetState(0, ref state) == 0)
             {
@@ -445,6 +369,7 @@ namespace ControlUp.Dialogs
                             CancelButton.Focus();
                     });
                     _thumbstickWasCentered = false;
+                    inputHandled = true;
                 }
                 else if (thumbstickCentered)
                 {
@@ -483,10 +408,111 @@ namespace ControlUp.Dialogs
                             CancelButton_Click(this, new RoutedEventArgs());
                         }
                     });
+                    inputHandled = true;
                 }
 
                 _lastXInputButtonState = currentButtons;
             }
+            return inputHandled;
+        }
+
+        private bool PollHidController()
+        {
+            bool inputHandled = false;
+
+            try
+            {
+                var reading = DirectInputWrapper.GetHidControllerReading();
+                if (!reading.IsValid) return false;
+
+                // Detect newly pressed buttons by comparing with last state
+                bool crossPressed = reading.Cross && (_lastHidReading == null || !_lastHidReading.Cross);
+                bool circlePressed = reading.Circle && (_lastHidReading == null || !_lastHidReading.Circle);
+                bool dpadLeftPressed = reading.DPadLeft && (_lastHidReading == null || !_lastHidReading.DPadLeft);
+                bool dpadRightPressed = reading.DPadRight && (_lastHidReading == null || !_lastHidReading.DPadRight);
+
+                // Check thumbstick position (HID uses 0-255 with 128 as center)
+                bool thumbstickLeft = reading.LeftStickX < (128 - HID_THUMBSTICK_DEADZONE) ||
+                                      reading.RightStickX < (128 - HID_THUMBSTICK_DEADZONE);
+                bool thumbstickRight = reading.LeftStickX > (128 + HID_THUMBSTICK_DEADZONE) ||
+                                       reading.RightStickX > (128 + HID_THUMBSTICK_DEADZONE);
+                bool thumbstickCentered = !thumbstickLeft && !thumbstickRight;
+
+                // Handle thumbstick navigation (only trigger once per movement)
+                if (_thumbstickWasCentered && (thumbstickLeft || thumbstickRight))
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        _remainingSeconds = _settings.NotificationDurationSeconds;
+                        UpdateCountdown();
+
+                        _selectedIndex = _selectedIndex == 0 ? 1 : 0;
+                        UpdateButtonStyles();
+                        if (_selectedIndex == 0)
+                            YesButton.Focus();
+                        else
+                            CancelButton.Focus();
+                    });
+                    _thumbstickWasCentered = false;
+                    inputHandled = true;
+                }
+                else if (thumbstickCentered)
+                {
+                    _thumbstickWasCentered = true;
+                }
+
+                // Handle D-pad left/right
+                if (dpadLeftPressed || dpadRightPressed)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        _remainingSeconds = _settings.NotificationDurationSeconds;
+                        UpdateCountdown();
+
+                        _selectedIndex = _selectedIndex == 0 ? 1 : 0;
+                        UpdateButtonStyles();
+                        if (_selectedIndex == 0)
+                            YesButton.Focus();
+                        else
+                            CancelButton.Focus();
+                    });
+                    inputHandled = true;
+                }
+                // Cross button (A equivalent) = confirm selection
+                else if (crossPressed)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        _remainingSeconds = _settings.NotificationDurationSeconds;
+                        UpdateCountdown();
+
+                        if (_selectedIndex == 0)
+                            YesButton_Click(this, new RoutedEventArgs());
+                        else
+                            CancelButton_Click(this, new RoutedEventArgs());
+                    });
+                    inputHandled = true;
+                }
+                // Circle button (B equivalent) = cancel
+                else if (circlePressed)
+                {
+                    Dispatcher.Invoke(() =>
+                    {
+                        _remainingSeconds = _settings.NotificationDurationSeconds;
+                        UpdateCountdown();
+                        CancelButton_Click(this, new RoutedEventArgs());
+                    });
+                    inputHandled = true;
+                }
+
+                _lastHidReading = reading;
+            }
+            catch
+            {
+                // HID read failed, ignore
+            }
+
+            return inputHandled;
         }
 
         private void UpdateButtonStyles()
@@ -594,9 +620,33 @@ namespace ControlUp.Dialogs
 
         protected override void OnClosed(EventArgs e)
         {
-            _autoCloseTimer?.Stop();
-            _controllerCts?.Cancel();
-            SdlControllerWrapper.CloseController();
+            Logger?.Info($"[Dialog] Closing dialog #{_dialogId} - starting cleanup");
+
+            // Stop and unhook auto-close timer to release resources
+            if (_autoCloseTimer != null)
+            {
+                _autoCloseTimer.Stop();
+                _autoCloseTimer.Tick -= AutoCloseTimer_Tick;
+                _autoCloseTimer = null;
+                Logger?.Debug($"[Dialog] Dialog #{_dialogId}: AutoCloseTimer stopped and unhooked");
+            }
+
+            // Cancel controller monitoring first and wait for it to stop
+            if (_controllerCts != null)
+            {
+                _controllerCts.Cancel();
+                Thread.Sleep(100); // Give the polling loop time to exit
+                _controllerCts.Dispose();
+                _controllerCts = null;
+                Logger?.Debug($"[Dialog] Dialog #{_dialogId}: Controller monitoring stopped");
+            }
+
+            // DON'T close the SDL controller here - keep it open like Playnite does
+            // Each open/close cycle creates new Windows handles that accumulate
+            // The controller will be closed only on plugin shutdown or disconnection
+
+            Logger?.Info($"[Dialog] Dialog #{_dialogId} cleanup complete");
+
             base.OnClosed(e);
         }
     }
