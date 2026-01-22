@@ -16,6 +16,7 @@ namespace ControlUp.Dialogs
         // Settings reference
         private readonly ControlUpSettings _settings;
         private readonly FullscreenTriggerSource _triggerSource;
+        private readonly string _controllerName;
 
         // Auto-close timer
         private DispatcherTimer _autoCloseTimer;
@@ -61,13 +62,14 @@ namespace ControlUp.Dialogs
         }
 
         // Constructor with default settings
-        public ControllerDetectedDialog() : this(null, FullscreenTriggerSource.Connection) { }
+        public ControllerDetectedDialog() : this(null, FullscreenTriggerSource.Connection, null) { }
 
         // Constructor with settings
-        public ControllerDetectedDialog(ControlUpSettings settings, FullscreenTriggerSource source = FullscreenTriggerSource.Connection)
+        public ControllerDetectedDialog(ControlUpSettings settings, FullscreenTriggerSource source = FullscreenTriggerSource.Connection, string controllerName = null)
         {
             _settings = settings ?? new ControlUpSettings();
             _triggerSource = source;
+            _controllerName = controllerName;
             _remainingSeconds = _settings.NotificationDurationSeconds;
 
             InitializeComponent();
@@ -121,12 +123,18 @@ namespace ControlUp.Dialogs
             if (_triggerSource == FullscreenTriggerSource.Hotkey)
             {
                 TitleText.Text = "Hotkey Pressed";
-                MessageText.Text = "Fullscreen mode hotkey was pressed.";
+                if (!string.IsNullOrEmpty(_controllerName))
+                    MessageText.Text = $"{_controllerName} triggered fullscreen hotkey.";
+                else
+                    MessageText.Text = "A game controller triggered fullscreen hotkey.";
             }
             else
             {
                 TitleText.Text = "Controller Detected";
-                MessageText.Text = "A game controller has been connected.";
+                if (!string.IsNullOrEmpty(_controllerName))
+                    MessageText.Text = $"{_controllerName} has been connected.";
+                else
+                    MessageText.Text = "A game controller has been connected.";
             }
         }
 

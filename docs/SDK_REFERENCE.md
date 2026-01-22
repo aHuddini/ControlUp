@@ -25,6 +25,19 @@ public class OnControllerButtonStateChangedArgs
 {
     public ControllerInput Button { get; }
     public ControllerInputState State { get; }
+    public GamepadController Controller { get; }  // Which controller triggered the event
+}
+```
+
+### GamepadController Class
+
+```csharp
+public class GamepadController
+{
+    public int InstanceId { get; }    // Unique identifier
+    public string Path { get; }       // Device path
+    public string Name { get; }       // Controller name (e.g., "Xbox Controller")
+    public bool Enabled { get; }      // Whether enabled
 }
 ```
 
@@ -197,6 +210,44 @@ This extension requires an **experimental test build** of the Playnite SDK. The 
 3. Place in `lib/` folder of this project
 
 > **Note**: Test builds are not officially published. Contact the Playnite developer or check Discord for availability.
+
+## Connection Callbacks
+
+### OnControllerConnected
+
+Called when a controller is connected:
+
+```csharp
+public override void OnControllerConnected(OnControllerConnectedArgs args)
+{
+    var controller = args.Controller;
+    Console.WriteLine($"Connected: {controller.Name} (ID: {controller.InstanceId})");
+}
+```
+
+### OnControllerDisconnected
+
+Called when a controller is disconnected:
+
+```csharp
+public override void OnControllerDisconnected(OnControllerDisconnectedArgs args)
+{
+    var controller = args.Controller;
+    Console.WriteLine($"Disconnected: {controller.Name}");
+}
+```
+
+### GetConnectedControllers
+
+Get all currently connected controllers:
+
+```csharp
+List<GamepadController> controllers = PlayniteApi.GetConnectedControllers();
+foreach (var controller in controllers)
+{
+    Console.WriteLine($"  - {controller.Name} (ID: {controller.InstanceId})");
+}
+```
 
 ## Related SDK Members
 

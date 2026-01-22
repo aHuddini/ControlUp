@@ -93,17 +93,28 @@ This callback is invoked by Playnite whenever a controller button state changes 
 ### 1. ControlUpPlugin (ControlUp.cs)
 
 Main plugin class that:
-- Overrides `OnDesktopControllerButtonStateChanged` to receive controller events
+- Overrides `OnControllerConnected` to detect new controller connections
+- Overrides `OnDesktopControllerButtonStateChanged` to receive button events
 - Tracks pressed buttons in a `HashSet<ControllerInput>` for combo detection
-- Manages connection monitoring via `DispatcherTimer` for HID detection
 - Handles fullscreen switching via `SwitchToFullscreen()`
 
-**Key Method: Hotkey Detection**
+**Connection Detection:**
+```csharp
+public override void OnControllerConnected(OnControllerConnectedArgs args)
+{
+    var controller = args.Controller;
+    // controller.Name, controller.InstanceId available
+    TriggerFullscreenSwitch(FullscreenTriggerSource.Connection);
+}
+```
+
+**Hotkey Detection:**
 ```csharp
 private HashSet<ControllerInput> _pressedButtons = new HashSet<ControllerInput>();
 
 public override void OnDesktopControllerButtonStateChanged(OnControllerButtonStateChangedArgs args)
 {
+    // args.Controller.Name tells you which controller
     if (args.State == ControllerInputState.Pressed)
         _pressedButtons.Add(args.Button);
     else
@@ -112,26 +123,16 @@ public override void OnDesktopControllerButtonStateChanged(OnControllerButtonSta
     if (IsHotkeyComboPressed())
         TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey);
 }
-
-private bool IsHotkeyComboPressed()
-{
-    // Example: Start + RB combo
-    return _pressedButtons.Contains(ControllerInput.Start) &&
-           _pressedButtons.Contains(ControllerInput.RightShoulder);
-}
 ```
 
-### 2. Controller Detection (HidControllerDetector.cs)
+### 2. Controller Detection (SDK-based)
 
-Lightweight HID enumeration for connection detection:
-- Uses Windows SetupAPI and HID APIs
-- Filters by HID Usage Page (Generic Desktop) and Usage (Gamepad/Joystick)
-- Returns controller info: Name, Manufacturer, VID/PID, Type
+Uses Playnite's built-in SDK methods:
+- `OnControllerConnected` callback for new connections
+- `OnControllerDisconnected` callback for disconnections
+- `PlayniteApi.GetConnectedControllers()` for listing all controllers
 
-**Why HID instead of XInput?**
-- XInput only supports Xbox controllers
-- HID detects PlayStation, Nintendo, and third-party controllers
-- No dependency on specific driver software
+**No custom detection code needed** - the SDK handles Xbox, PlayStation, Nintendo, and third-party controllers via SDL.
 
 ### 3. Mode Switching (SwitchToFullscreen)
 
@@ -230,8 +231,6 @@ ControlUp/
 ├── ControlUp.cs                    # Main plugin, SDK callbacks
 ├── ControlUpSettings.cs            # Settings model, enums
 ├── Common/
-│   ├── HidControllerDetector.cs    # HID enumeration (connection detection)
-│   ├── XInputWrapper.cs            # XInput check (supplementary)
 │   ├── FileLogger.cs               # Debug logging
 │   ├── Constants.cs                # Shared constants
 │   └── EnumDescriptionConverter.cs # WPF enum display helper
@@ -243,20 +242,20 @@ ControlUp/
 ├── Controls/
 │   └── ColorPickerButton.xaml(.cs)         # Color picker control
 └── lib/
-    └── Playnite.SDK.dll                    # SDK with new callbacks
+    └── Playnite.SDK.dll                    # SDK with controller callbacks
 ```
 
 ## Prerequisites for Development
 
-1. **Experimental Playnite SDK**: The `OnDesktopControllerButtonStateChanged` callback requires a **test build** of Playnite with experimental Desktop mode controller support. This is not available in official releases.
+1. **Experimental Playnite SDK**: Requires a **test build** of Playnite with Desktop mode controller support. This is not available in official releases.
 
-2. **User Configuration**: Users must enable "Controller input" in Playnite's Desktop mode settings for the SDK callback to fire.
+2. **User Configuration**: Users must enable "Controller input" in Playnite's Desktop mode settings for the SDK callbacks to fire.
 
 3. **Reference the test SDK**: Use the local SDK DLL from the test build (in `lib/` folder), not the official NuGet package.
 
 ## Performance Considerations
 
 - **No polling threads**: All input comes via SDK callbacks
-- **Minimal timer usage**: Only one 500ms timer for HID connection monitoring
+- **No timers for connection detection**: `OnControllerConnected` callback handles it
 - **Efficient button tracking**: HashSet for O(1) combo detection
-- **Event-driven architecture**: No busy-waiting or sleep loops
+- **Fully event-driven architecture**: No busy-waiting or sleep loops

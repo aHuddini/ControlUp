@@ -1,6 +1,5 @@
 using Playnite.SDK;
 using Playnite.SDK.Data;
-using ControlUp.Common;
 using ControlUp.Dialogs;
 using System;
 using System.Collections.Generic;
@@ -75,45 +74,25 @@ namespace ControlUp
                 var controllerInfo = new StringBuilder();
                 controllerInfo.AppendLine("Scanning for connected controllers...\n");
 
-                // Get all HID game controllers (works for PS5, Xbox, Switch, etc.)
-                var hidControllers = HidControllerDetector.GetConnectedControllers();
+                // Use Playnite's SDK to get connected controllers
+                var controllers = PlayniteApi.GetConnectedControllers();
 
-                if (hidControllers.Count > 0)
+                if (controllers != null && controllers.Count > 0)
                 {
-                    controllerInfo.AppendLine("Detected Controllers:");
-                    foreach (var controller in hidControllers)
+                    controllerInfo.AppendLine($"Detected {controllers.Count} Controller(s):");
+                    foreach (var controller in controllers)
                     {
-                        controllerInfo.AppendLine($"  - {controller.Name}");
-                        controllerInfo.AppendLine($"    Type: {controller.Type}");
-                        controllerInfo.AppendLine($"    Manufacturer: {controller.Manufacturer}");
-                        controllerInfo.AppendLine($"    VID: 0x{controller.VendorId:X4}, PID: 0x{controller.ProductId:X4}");
-                        controllerInfo.AppendLine();
+                        controllerInfo.AppendLine($"  - {controller.Name} (ID: {controller.InstanceId})");
                     }
+                    controllerInfo.AppendLine();
                 }
                 else
                 {
-                    controllerInfo.AppendLine("No game controllers detected.");
+                    controllerInfo.AppendLine("No controllers detected via Playnite SDK.");
                     controllerInfo.AppendLine();
                 }
 
-                // Also check XInput for comparison
-                controllerInfo.AppendLine("XInput Status (Xbox/XInput only):");
-                bool anyXInput = false;
-                for (uint i = 0; i < 4; i++)
-                {
-                    if (XInputWrapper.IsControllerConnectedToSlot(i))
-                    {
-                        controllerInfo.AppendLine($"  - Slot {i + 1}: Connected");
-                        anyXInput = true;
-                    }
-                }
-                if (!anyXInput)
-                {
-                    controllerInfo.AppendLine("  - No XInput controllers");
-                }
-
-                controllerInfo.AppendLine();
-                controllerInfo.AppendLine("Note: Hotkey detection uses Playnite's SDL support.");
+                controllerInfo.AppendLine("Note: Controller detection uses Playnite's SDL support.");
                 controllerInfo.AppendLine("Enable 'Controller input' in Playnite Desktop settings.");
 
                 DetectedControllersText = controllerInfo.ToString();

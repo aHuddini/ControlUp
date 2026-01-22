@@ -1,5 +1,25 @@
 # ControlUp Changelog
 
+## Version 2.2.0 (January 22, 2026)
+
+### Major Changes
+- **SDK Connection Callbacks**: Using new `OnControllerConnected` and `OnControllerDisconnected` callbacks
+  - No more timer-based polling for connection detection
+  - Instant response to controller plug/unplug events
+- **Controller Info in Events**: Button events now include controller name and ID
+- **GetConnectedControllers API**: Using `PlayniteApi.GetConnectedControllers()` for listing controllers
+
+### Removed
+- `HidControllerDetector.cs` - Replaced by SDK's `GetConnectedControllers()`
+- `XInputWrapper.cs` - No longer needed
+- `DispatcherTimer` polling - Replaced by `OnControllerConnected` callback
+
+### Technical
+- Fully event-driven architecture with zero polling
+- Logs now include which controller triggered the action
+
+---
+
 ## Version 2.1.0 (January 22, 2026)
 
 ### Breaking Changes
@@ -17,7 +37,6 @@
   - Avoids annoying popup when switching back from Fullscreen to Desktop
   - Recommended for most users
 - **Single Button Hotkeys**: Guide, Start, or Back buttons can trigger fullscreen directly
-- **HID Controller Detection**: Cross-platform detection for connection monitoring (Xbox, PlayStation, Nintendo, 8BitDo)
 
 ### Improvements
 - **Reliable Mode Switching**: Simply launches Fullscreen app, Playnite handles coordination internally

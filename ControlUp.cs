@@ -6,6 +6,7 @@ using ControlUp.Dialogs;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
@@ -16,15 +17,11 @@ namespace ControlUp
     {
         private static readonly ILogger Logger = LogManager.GetLogger();
 
-        // Connection monitoring (minimal timer for detecting new connections)
-        private DispatcherTimer _connectionTimer;
-        private bool _controllerWasConnected = false;
-
         // Prevent multiple popups
         private bool _popupShowing = false;
         private DateTime _lastPopupTime = DateTime.MinValue;
         private DateTime _dialogClosedTime = DateTime.MinValue;
-        private const int POPUP_COOLDOWN_SECONDS = 30;
+        private const int POPUP_COOLDOWN_SECONDS = 5;
         private const int DIALOG_CLOSE_COOLDOWN_MS = 500; // Prevent immediate re-trigger after dialog closes
 
         // Hotkey tracking via SDK events
@@ -76,52 +73,104 @@ namespace ControlUp
             _fileLogger?.Info($"=== Application Started - Mode: {currentMode} ===");
             _fileLogger?.Info($"Settings: TriggerMode={Settings.Settings.FullscreenTriggerMode}, Hotkey={Settings.Settings.EnableHotkey}, HotkeyCombo={Settings.Settings.HotkeyCombo}");
 
-            // Check initial controller state (use HID detection for broader compatibility)
-            bool xinputConnected = XInputWrapper.IsControllerConnected();
-            bool hidConnected = HidControllerDetector.IsAnyControllerConnected();
-            _controllerWasConnected = xinputConnected || hidConnected;
-            _fileLogger?.Info($"Initial controller check - XInput: {xinputConnected}, HID: {hidConnected}, Any: {_controllerWasConnected}");
-
-            // If already in fullscreen, no need to monitor
+            // If already in fullscreen, no need to process
             if (currentMode == ApplicationMode.Fullscreen)
             {
-                _fileLogger?.Info("Already in fullscreen mode, monitoring disabled");
+                _fileLogger?.Info("Already in fullscreen mode");
                 return;
+            }
+
+            // Check if controller is already connected (for startup trigger modes)
+            var connectedControllers = PlayniteApi.GetConnectedControllers();
+            bool controllerConnected = connectedControllers != null && connectedControllers.Any();
+            _fileLogger?.Info($"Initial controller check - Connected: {controllerConnected}, Count: {connectedControllers?.Count ?? 0}");
+            if (controllerConnected)
+            {
+                foreach (var c in connectedControllers)
+                    _fileLogger?.Info($"  - {c.Name} (ID: {c.InstanceId})");
             }
 
             // For startup modes, trigger if controller is already connected
             var triggerMode = Settings.Settings.FullscreenTriggerMode;
-            _fileLogger?.Info($"Checking startup trigger: Mode={triggerMode}, ControllerConnected={_controllerWasConnected}");
-
-            bool shouldTriggerOnStartup = _controllerWasConnected && (
+            bool shouldTriggerOnStartup = controllerConnected && (
                 triggerMode == FullscreenTriggerMode.AnyControllerOnStartupOnly ||
                 triggerMode == FullscreenTriggerMode.AnyControllerConnectedAnytime);
 
             if (shouldTriggerOnStartup)
             {
-                _fileLogger?.Info("Controller detected on startup, triggering fullscreen popup");
-                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };  // Give UI time to load
+                var firstControllerName = connectedControllers.FirstOrDefault()?.Name;
+                _fileLogger?.Info($"Controller detected on startup ({firstControllerName}), triggering fullscreen popup");
+                // Delay to let UI load
+                var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };
                 timer.Tick += (s, e) =>
                 {
                     timer.Stop();
-                    TriggerFullscreenSwitch(FullscreenTriggerSource.Connection);
+                    TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, firstControllerName);
                 };
                 timer.Start();
             }
-            else
-            {
-                _fileLogger?.Info($"Not triggering on startup: shouldTrigger={shouldTriggerOnStartup}");
-            }
 
-            // Start connection monitoring for runtime detection modes
-            StartConnectionMonitoring();
+            // Note: Runtime connection detection is handled by OnControllerConnected callback
         }
 
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
         {
             Logger.Info("ControlUp: Application stopped");
             _fileLogger?.Info("=== Application Stopped ===");
-            StopConnectionMonitoring();
+        }
+
+        /// <summary>Called when a controller is connected.</summary>
+        public override void OnControllerConnected(OnControllerConnectedArgs args)
+        {
+            var controller = args.Controller;
+            _fileLogger?.Info($"Controller connected: {controller.Name} (ID: {controller.InstanceId})");
+            Logger.Info($"ControlUp: Controller connected - {controller.Name}");
+
+            // Don't trigger if already in fullscreen
+            if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen)
+            {
+                _fileLogger?.Info("Already in fullscreen, ignoring connection");
+                return;
+            }
+
+            // Check trigger mode
+            var triggerMode = Settings.Settings.FullscreenTriggerMode;
+            bool shouldTrigger = triggerMode == FullscreenTriggerMode.NewConnectionOnly ||
+                                 triggerMode == FullscreenTriggerMode.AnyControllerConnectedAnytime;
+
+            if (!shouldTrigger)
+            {
+                _fileLogger?.Info($"Trigger mode {triggerMode} doesn't respond to connections");
+                return;
+            }
+
+            // Check cooldowns
+            if (_popupShowing)
+            {
+                _fileLogger?.Info("Popup already showing, ignoring connection");
+                return;
+            }
+
+            if ((DateTime.Now - _lastPopupTime).TotalSeconds < POPUP_COOLDOWN_SECONDS)
+            {
+                _fileLogger?.Info("In cooldown period, ignoring connection");
+                return;
+            }
+
+            _fileLogger?.Info($"Triggering fullscreen switch for: {controller.Name}");
+            var name = controller.Name;
+            Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+            {
+                TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, name);
+            }));
+        }
+
+        /// <summary>Called when a controller is disconnected.</summary>
+        public override void OnControllerDisconnected(OnControllerDisconnectedArgs args)
+        {
+            var controller = args.Controller;
+            _fileLogger?.Info($"Controller disconnected: {controller.Name} (ID: {controller.InstanceId})");
+            Logger.Info($"ControlUp: Controller disconnected - {controller.Name}");
         }
 
         /// <summary>Handles controller button events from Playnite's SDL input system.</summary>
@@ -170,11 +219,12 @@ namespace ControlUp
             if (!_hotkeyTriggered && IsHotkeyComboPressed())
             {
                 _hotkeyTriggered = true;
-                _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} detected via SDK, triggering fullscreen");
+                var controllerName = args.Controller?.Name;
+                _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} detected from '{controllerName ?? "unknown"}', triggering fullscreen");
 
                 Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                 {
-                    TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey);
+                    TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, controllerName);
                 }));
             }
         }
@@ -213,66 +263,6 @@ namespace ControlUp
             }
         }
 
-        private void StartConnectionMonitoring()
-        {
-            var triggerMode = Settings.Settings.FullscreenTriggerMode;
-            // Need runtime monitoring for "Anytime" and "NewConnectionOnly" modes
-            // (startup-only doesn't need continuous monitoring)
-            bool needsConnectionMonitoring = triggerMode == FullscreenTriggerMode.AnyControllerConnectedAnytime ||
-                                             triggerMode == FullscreenTriggerMode.NewConnectionOnly;
-
-            if (!needsConnectionMonitoring)
-            {
-                _fileLogger?.Info("Connection monitoring not needed for current trigger mode");
-                return;
-            }
-
-            _connectionTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromMilliseconds(500)
-            };
-            _connectionTimer.Tick += OnConnectionTimerTick;
-            _connectionTimer.Start();
-            _fileLogger?.Info("Started connection monitoring (500ms interval)");
-        }
-
-        private void StopConnectionMonitoring()
-        {
-            if (_connectionTimer != null)
-            {
-                _connectionTimer.Stop();
-                _connectionTimer.Tick -= OnConnectionTimerTick;
-                _connectionTimer = null;
-            }
-            _fileLogger?.Info("Stopped connection monitoring");
-        }
-
-        private void OnConnectionTimerTick(object sender, EventArgs e)
-        {
-            // Don't monitor if already in fullscreen
-            if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen)
-                return;
-
-            // Don't check if popup is showing or in cooldown
-            if (_popupShowing)
-                return;
-
-            if ((DateTime.Now - _lastPopupTime).TotalSeconds < POPUP_COOLDOWN_SECONDS)
-                return;
-
-            // Check both XInput and HID for broader controller support (PS5, Switch, etc.)
-            bool controllerNowConnected = XInputWrapper.IsControllerConnected() || HidControllerDetector.IsAnyControllerConnected();
-
-            // Detect NEW connection (was disconnected, now connected)
-            if (controllerNowConnected && !_controllerWasConnected)
-            {
-                _fileLogger?.Info("New controller connection detected, triggering fullscreen");
-                TriggerFullscreenSwitch(FullscreenTriggerSource.Connection);
-            }
-
-            _controllerWasConnected = controllerNowConnected;
-        }
-
         public override ISettings GetSettings(bool firstRunSettings)
         {
             return Settings;
@@ -283,10 +273,11 @@ namespace ControlUp
             return new ControlUpSettingsView(Settings);
         }
 
-        private void TriggerFullscreenSwitch(FullscreenTriggerSource source)
+        private void TriggerFullscreenSwitch(FullscreenTriggerSource source, string controllerName = null)
         {
             _popupShowing = true;
             _lastPopupTime = DateTime.Now;
+            _fileLogger?.Info($"TriggerFullscreenSwitch called with source: {source}, controller: {controllerName ?? "unknown"}");
 
             try
             {
@@ -297,48 +288,40 @@ namespace ControlUp
                 if (skipPopup)
                 {
                     _fileLogger?.Info($"Skipping popup (source: {source}), switching directly to fullscreen");
-                    Application.Current.Dispatcher.Invoke(() => SwitchToFullscreen());
+                    SwitchToFullscreen();
+                    _popupShowing = false;
                 }
                 else
                 {
-                    Application.Current.Dispatcher.Invoke(() =>
+                    _activeDialog = new ControllerDetectedDialog(Settings.Settings, source, controllerName);
+                    var result = _activeDialog.ShowDialog();
+
+                    // Clear pressed buttons and set cooldown to prevent immediate re-trigger
+                    _pressedButtons.Clear();
+                    _dialogClosedTime = DateTime.Now;
+                    _hotkeyTriggered = false;
+
+                    _fileLogger?.Info($"Dialog closed with result: {result}, UserSelectedYes: {_activeDialog?.UserSelectedYes}");
+
+                    if (result == true && _activeDialog.UserSelectedYes)
                     {
-                        _activeDialog = new ControllerDetectedDialog(Settings.Settings, source);
-                        var result = _activeDialog.ShowDialog();
+                        _fileLogger?.Info("User selected Yes - switching to fullscreen now");
+                        SwitchToFullscreen();
+                    }
+                    else
+                    {
+                        _fileLogger?.Info("User selected Cancel or dialog timed out");
+                    }
 
-                        // Clear pressed buttons and set cooldown to prevent immediate re-trigger
-                        _pressedButtons.Clear();
-                        _dialogClosedTime = DateTime.Now;
-                        _hotkeyTriggered = false;
-
-                        if (result == true && _activeDialog.UserSelectedYes)
-                        {
-                            _fileLogger?.Info("User selected Yes - switching to fullscreen");
-                            // Delay the switch slightly to ensure dialog is fully closed
-                            var switchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-                            switchTimer.Tick += (ts, te) =>
-                            {
-                                switchTimer.Stop();
-                                SwitchToFullscreen();
-                            };
-                            switchTimer.Start();
-                        }
-                        else
-                        {
-                            _fileLogger?.Info("User selected Cancel or dialog timed out");
-                        }
-
-                        _activeDialog = null;
-                    });
+                    _activeDialog = null;
+                    _popupShowing = false;
                 }
             }
             catch (Exception ex)
             {
                 _fileLogger?.Error($"Error triggering fullscreen: {ex.Message}");
+                _fileLogger?.Error($"Stack trace: {ex.StackTrace}");
                 Logger.Error(ex, "ControlUp: Error triggering fullscreen switch");
-            }
-            finally
-            {
                 _popupShowing = false;
                 _activeDialog = null;
             }
@@ -346,25 +329,26 @@ namespace ControlUp
 
         private void SwitchToFullscreen()
         {
-            try
-            {
-                string fullscreenExe = Path.Combine(PlayniteApi.Paths.ApplicationPath, "Playnite.FullscreenApp.exe");
-                _fileLogger?.Info($"Launching: {fullscreenExe}");
+            string fullscreenExe = Path.Combine(PlayniteApi.Paths.ApplicationPath, "Playnite.FullscreenApp.exe");
+            _fileLogger?.Info($"Launching: {fullscreenExe}");
 
-                if (File.Exists(fullscreenExe))
-                {
-                    System.Diagnostics.Process.Start(fullscreenExe);
-                }
-                else
-                {
-                    _fileLogger?.Error($"Fullscreen app not found: {fullscreenExe}");
-                    Logger.Error($"ControlUp: Could not find Playnite.FullscreenApp.exe");
-                }
-            }
-            catch (Exception ex)
+            if (File.Exists(fullscreenExe))
             {
-                _fileLogger?.Error($"Error switching to fullscreen: {ex.Message}");
-                Logger.Error(ex, "ControlUp: Error switching to fullscreen");
+                var startInfo = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = fullscreenExe,
+                    UseShellExecute = false,
+                    WorkingDirectory = PlayniteApi.Paths.ApplicationPath
+                };
+
+                System.Diagnostics.Process.Start(startInfo);
+                _fileLogger?.Info("Fullscreen app launched");
+
+                Application.Current.Shutdown();
+            }
+            else
+            {
+                _fileLogger?.Error($"Fullscreen app not found: {fullscreenExe}");
             }
         }
     }
