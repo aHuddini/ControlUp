@@ -602,7 +602,14 @@ namespace ControlUp
                         if (result == true && dialog.UserSelectedYes)
                         {
                             _fileLogger?.Info("User selected Yes - switching to fullscreen");
-                            SwitchToFullscreen();
+                            // Delay the switch slightly to ensure dialog is fully closed
+                            var switchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
+                            switchTimer.Tick += (s, args) =>
+                            {
+                                switchTimer.Stop();
+                                SwitchToFullscreen();
+                            };
+                            switchTimer.Start();
                         }
                         else
                         {
@@ -630,41 +637,27 @@ namespace ControlUp
 
         private void SwitchToFullscreen()
         {
-            try
+            string fullscreenExe = Path.Combine(PlayniteApi.Paths.ApplicationPath, "Playnite.FullscreenApp.exe");
+            _fileLogger?.Info($"Launching: {fullscreenExe}");
+
+            if (File.Exists(fullscreenExe))
             {
-                _fileLogger?.Info("Switching to fullscreen mode");
-
-                var mainViewType = PlayniteApi.MainView.GetType();
-                var switchMethod = mainViewType.GetMethod("SwitchToFullscreenMode",
-                    BindingFlags.Instance | BindingFlags.Public);
-
-                if (switchMethod != null)
+                var startInfo = new System.Diagnostics.ProcessStartInfo
                 {
-                    switchMethod.Invoke(PlayniteApi.MainView, null);
-                }
-                else
-                {
-                    _fileLogger?.Info("SwitchToFullscreenMode not found, sending F11");
-                    SendF11Key();
-                }
+                    FileName = fullscreenExe,
+                    UseShellExecute = false,
+                    WorkingDirectory = PlayniteApi.Paths.ApplicationPath
+                };
+
+                System.Diagnostics.Process.Start(startInfo);
+                _fileLogger?.Info("Fullscreen app launched");
+
+                Application.Current.Shutdown();
             }
-            catch (Exception ex)
+            else
             {
-                _fileLogger?.Error($"Error switching to fullscreen: {ex.Message}");
-                Logger.Error(ex, "ControlUp: Error switching to fullscreen");
+                _fileLogger?.Error($"Fullscreen app not found: {fullscreenExe}");
             }
-        }
-
-        [System.Runtime.InteropServices.DllImport("user32.dll")]
-        private static extern void keybd_event(byte bVk, byte bScan, uint dwFlags, UIntPtr dwExtraInfo);
-
-        private const byte VK_F11 = 0x7A;
-
-        private void SendF11Key()
-        {
-            keybd_event(VK_F11, 0, 0, UIntPtr.Zero);
-            Thread.Sleep(50);
-            keybd_event(VK_F11, 0, 2, UIntPtr.Zero);
         }
 
         /// <summary>
