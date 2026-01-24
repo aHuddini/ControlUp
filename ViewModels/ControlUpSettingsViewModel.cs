@@ -35,10 +35,9 @@ namespace ControlUp
         public IEnumerable<FullscreenTriggerMode> AvailableTriggerModes => new[]
         {
             FullscreenTriggerMode.Disabled,
-            FullscreenTriggerMode.XInputControllerOnStartup,
-            FullscreenTriggerMode.AnyControllerOnStartup,
-            FullscreenTriggerMode.XInputController,
-            FullscreenTriggerMode.AnyController
+            FullscreenTriggerMode.NewConnectionOnly,
+            FullscreenTriggerMode.AnyControllerAnytime,
+            FullscreenTriggerMode.StartupOnly
         };
 
         public ControlUpSettingsViewModel(ControlUpPlugin plugin, IPlayniteAPI playniteApi)
@@ -72,94 +71,85 @@ namespace ControlUp
             return true;
         }
 
-        public string DetectedControllersText { get; set; } = "Click 'Detect Controllers' to scan.";
+        public string DetectedControllersText { get; set; } = "Click 'Detect Controllers' to scan for connected controllers.";
 
         public RelayCommand DetectControllersCommand => new RelayCommand(() =>
         {
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("=== Controller Detection Results ===\n");
+                sb.AppendLine("Scanning for connected controllers...\n");
 
-                // XInput detection (Xbox controllers)
+                var controllers = new List<string>();
+
+                // Check XInput (Xbox controllers)
                 var xinputInfo = XInputWrapper.GetControllerInfo();
-                sb.AppendLine("XInput (Xbox Controllers):");
                 if (xinputInfo.Connected)
                 {
                     string wireless = xinputInfo.IsWireless ? " [Wireless]" : "";
-                    sb.AppendLine($"  ✓ {xinputInfo.Name}{wireless}");
+                    controllers.Add($"{xinputInfo.Name}{wireless} [XInput]");
+                }
+
+                // Check SDL (all controller types including PlayStation)
+                string sdlControllerName = null;
+                try
+                {
+                    if (SdlControllerWrapper.Initialize())
+                    {
+                        sdlControllerName = SdlControllerWrapper.GetControllerName();
+                        if (!string.IsNullOrEmpty(sdlControllerName))
+                        {
+                            // Only add if it's not an Xbox controller (avoid duplicates)
+                            bool isXboxController = sdlControllerName.IndexOf("Xbox", StringComparison.OrdinalIgnoreCase) >= 0;
+                            if (!isXboxController || !xinputInfo.Connected)
+                            {
+                                controllers.Add($"{sdlControllerName} [SDL]");
+                            }
+                        }
+                        SdlControllerWrapper.Shutdown();
+                    }
+                }
+                catch { }
+
+                // Check DirectInput/HID as fallback (PlayStation controllers)
+                // Only if SDL didn't find a PlayStation controller
+                bool sdlFoundPlayStation = !string.IsNullOrEmpty(sdlControllerName) &&
+                    (sdlControllerName.IndexOf("DualSense", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     sdlControllerName.IndexOf("DualShock", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     sdlControllerName.IndexOf("PS5", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                     sdlControllerName.IndexOf("PS4", StringComparison.OrdinalIgnoreCase) >= 0);
+
+                if (!sdlFoundPlayStation)
+                {
+                    try
+                    {
+                        var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
+                        foreach (var hidName in hidControllers)
+                        {
+                            // Only add PlayStation controllers not already detected
+                            bool isPlayStation = hidName.IndexOf("DualSense", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                 hidName.IndexOf("DualShock", StringComparison.OrdinalIgnoreCase) >= 0 ||
+                                                 hidName.IndexOf("Wireless Controller", StringComparison.OrdinalIgnoreCase) >= 0;
+                            if (isPlayStation)
+                            {
+                                controllers.Add($"{hidName} [DirectInput]");
+                            }
+                        }
+                    }
+                    catch { }
+                }
+
+                if (controllers.Count > 0)
+                {
+                    sb.AppendLine($"Detected {controllers.Count} controller(s):");
+                    foreach (var controller in controllers)
+                    {
+                        sb.AppendLine($"  - {controller}");
+                    }
                 }
                 else
                 {
-                    sb.AppendLine("  • No XInput controllers detected");
-                }
-                sb.AppendLine();
-
-                // DirectInput/HID detection (PlayStation & other controllers)
-                sb.AppendLine("DirectInput/HID (PlayStation & Other Controllers):");
-                try
-                {
-                    var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
-                    if (hidControllers.Any())
-                    {
-                        foreach (var name in hidControllers.Take(5))
-                        {
-                            sb.AppendLine($"  ✓ {name}");
-                        }
-                        if (hidControllers.Count > 5)
-                        {
-                            sb.AppendLine($"  ... and {hidControllers.Count - 5} more");
-                        }
-                    }
-                    else
-                    {
-                        sb.AppendLine("  • No HID game controllers detected");
-                    }
-                }
-                catch (Exception hidEx)
-                {
-                    sb.AppendLine($"  • HID error: {hidEx.Message}");
-                }
-                sb.AppendLine();
-
-                // SDL status (for input reading)
-                sb.AppendLine("SDL (Input Reading):");
-                try
-                {
-                    if (SdlControllerWrapper.Initialize() || SdlControllerWrapper.IsAvailable)
-                    {
-                        if (SdlControllerWrapper.IsControllerConnected())
-                        {
-                            var sdlName = SdlControllerWrapper.GetControllerName();
-                            sb.AppendLine($"  ✓ Ready: {sdlName ?? "Game Controller"}");
-                        }
-                        else
-                        {
-                            sb.AppendLine("  • SDL initialized, no controller open");
-                        }
-                    }
-                    else
-                    {
-                        sb.AppendLine("  • SDL not available");
-                    }
-                }
-                catch (Exception sdlEx)
-                {
-                    sb.AppendLine($"  • SDL error: {sdlEx.Message}");
-                }
-                sb.AppendLine();
-
-                // Summary
-                sb.AppendLine("Summary:");
-                var state = ControllerDetector.GetControllerState(false);
-                if (state.IsConnected)
-                {
-                    sb.AppendLine($"  ✓ Active controller: {state.Name}");
-                    sb.AppendLine($"    Detection source: {state.Source}");
-                }
-                else
-                {
-                    sb.AppendLine("  • No controllers currently detected");
+                    sb.AppendLine("No controllers detected.");
                 }
 
                 DetectedControllersText = sb.ToString();
@@ -168,7 +158,7 @@ namespace ControlUp
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to detect controllers");
-                DetectedControllersText = $"Error: {ex.Message}";
+                DetectedControllersText = $"Error detecting controllers: {ex.Message}";
                 OnPropertyChanged(nameof(DetectedControllersText));
             }
         });
@@ -207,7 +197,26 @@ namespace ControlUp
         {
             try
             {
-                var controllerName = XInputWrapper.GetControllerName() ?? "Controller";
+                // Try to get controller name from XInput first, then SDL, then DirectInput
+                var controllerName = XInputWrapper.GetControllerName();
+                if (string.IsNullOrEmpty(controllerName))
+                {
+                    if (SdlControllerWrapper.Initialize())
+                    {
+                        controllerName = SdlControllerWrapper.GetControllerName();
+                        SdlControllerWrapper.Shutdown();
+                    }
+                }
+                if (string.IsNullOrEmpty(controllerName))
+                {
+                    var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
+                    if (hidControllers.Count > 0)
+                    {
+                        controllerName = hidControllers[0];
+                    }
+                }
+                controllerName = controllerName ?? "Controller";
+
                 var dialog = new ControllerDetectedDialog(Settings, FullscreenTriggerSource.Connection, controllerName);
                 dialog.ShowDialog();
             }

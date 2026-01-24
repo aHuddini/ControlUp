@@ -9,31 +9,14 @@ namespace ControlUp
     public class ControlUpSettings : ObservableObject, ISettings
     {
         // General Settings
-        private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.XInputController;
+        private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.NewConnectionOnly;
         private bool _enableLogging = false;
         private bool _skipPopupOnConnection = false;
 
         public FullscreenTriggerMode FullscreenTriggerMode
         {
             get => _fullscreenTriggerMode;
-            set => SetValue(ref _fullscreenTriggerMode, MigrateLegacyMode(value));
-        }
-
-        // Migrate legacy enum values to new simplified modes
-        private static FullscreenTriggerMode MigrateLegacyMode(FullscreenTriggerMode mode)
-        {
-            switch (mode)
-            {
-                case FullscreenTriggerMode.UsbControllerConnected:
-                case FullscreenTriggerMode.BluetoothControllerConnected:
-                case FullscreenTriggerMode.AnyControllerConnected:
-                    return FullscreenTriggerMode.XInputController;
-                case FullscreenTriggerMode.UsbControllerOnStartup:
-                case FullscreenTriggerMode.BluetoothControllerOnStartup:
-                    return FullscreenTriggerMode.XInputControllerOnStartup;
-                default:
-                    return mode;
-            }
+            set => SetValue(ref _fullscreenTriggerMode, value);
         }
 
         public bool EnableLogging
@@ -210,32 +193,17 @@ namespace ControlUp
 
     public enum FullscreenTriggerMode
     {
-        [Description("Disabled - No controller detection")]
+        [Description("Disabled - No automatic switching")]
         Disabled,
 
-        [Description("[On Startup Only] XInput - XInput-compatible controllers")]
-        XInputControllerOnStartup,
+        [Description("New Connection Only - Trigger when controller is newly connected")]
+        NewConnectionOnly,
 
-        [Description("[On Startup Only] Any Controller - XInput or other non-XInput controllers")]
-        AnyControllerOnStartup,
+        [Description("Any Controller Anytime - Trigger on startup and new connections")]
+        AnyControllerAnytime,
 
-        [Description("XInput Connected - XInput-compatible controllers")]
-        XInputController,
-
-        [Description("Any Controller Connected - XInput or other non-XInput controllers")]
-        AnyController,
-
-        // Legacy values kept for settings migration (hidden from UI)
-        [Description("")]
-        UsbControllerConnected = 10,
-        [Description("")]
-        BluetoothControllerConnected = 11,
-        [Description("")]
-        AnyControllerConnected = 12,
-        [Description("")]
-        UsbControllerOnStartup = 13,
-        [Description("")]
-        BluetoothControllerOnStartup = 14
+        [Description("Startup Only - Only check when Playnite starts")]
+        StartupOnly
     }
 
     public enum NotificationPosition

@@ -28,11 +28,11 @@ namespace ControlUp.Common
         // Static logger for diagnostics
         public static FileLogger Logger { get; set; }
 
-        // Cache for DirectInput detection to avoid handle exhaustion
+        // Cache for DirectInput detection to balance responsiveness vs handle usage
         // DirectInput/HID enumeration creates handles on each call
         private static ControllerState _cachedDirectInputState = null;
         private static DateTime _lastDirectInputCheck = DateTime.MinValue;
-        private const int DIRECTINPUT_CHECK_INTERVAL_MS = 10000; // Check every 10 seconds to avoid handle leaks
+        private const int DIRECTINPUT_CHECK_INTERVAL_MS = 1000; // Check every 1 second for responsive detection
 
         // Track call counts for diagnostics
         private static int _getControllerStateCallCount = 0;

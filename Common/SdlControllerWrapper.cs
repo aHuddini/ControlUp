@@ -101,14 +101,16 @@ namespace ControlUp.Common
                     // https://github.com/libsdl-org/SDL/issues/13291
                     SDL.SDL_SetHint("SDL_JOYSTICK_WGI", "0");
 
-                    // Disable HIDAPI to reduce resource usage (XInput will still work)
-                    SDL.SDL_SetHint("SDL_JOYSTICK_HIDAPI", "0");
+                    // Enable HIDAPI - required for PlayStation controllers (DualSense, DualShock 4)
+                    SDL.SDL_SetHint("SDL_JOYSTICK_HIDAPI", "1");
+                    SDL.SDL_SetHint("SDL_JOYSTICK_HIDAPI_PS4", "1");
+                    SDL.SDL_SetHint("SDL_JOYSTICK_HIDAPI_PS5", "1");
 
                     // Disable SDL game controller events - we poll manually like Playnite does
                     SDL.SDL_GameControllerEventState(SDL.SDL_IGNORE);
 
                     _isAvailable = true;
-                    Logger?.Info("[SDL] Initialized with RAWINPUT, WGI, and HIDAPI disabled");
+                    Logger?.Info("[SDL] Initialized with HIDAPI enabled for PlayStation controllers");
                     return true;
                 }
                 catch (Exception ex)

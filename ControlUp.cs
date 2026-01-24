@@ -93,8 +93,7 @@ namespace ControlUp
             }
 
             // Check if this is a startup-only mode
-            bool isStartupMode = triggerMode == FullscreenTriggerMode.XInputControllerOnStartup ||
-                                  triggerMode == FullscreenTriggerMode.AnyControllerOnStartup;
+            bool isStartupMode = triggerMode == FullscreenTriggerMode.StartupOnly;
 
             // Check initial controller state
             var controllerState = GetControllerStateForMode(triggerMode);
@@ -122,14 +121,24 @@ namespace ControlUp
                 return;
             }
 
-            // Runtime modes (XInputController, AnyController):
-            // If controller already connected at startup, trigger immediately
+            // Runtime modes (NewConnectionOnly, AnyControllerAnytime):
+            // For AnyControllerAnytime, trigger if controller already connected at startup
+            // For NewConnectionOnly, only trigger on NEW connections (not already connected at startup)
             if (controllerState.IsConnected)
             {
-                _fileLogger?.Info($"Runtime mode: Controller already connected at startup, triggering fullscreen");
                 _controllerWasConnected = true;
                 _lastControllerName = controllerState.Name;
-                DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, controllerState.Name));
+
+                if (triggerMode == FullscreenTriggerMode.AnyControllerAnytime)
+                {
+                    _fileLogger?.Info($"AnyControllerAnytime: Controller already connected at startup, triggering fullscreen");
+                    DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, controllerState.Name));
+                }
+                else
+                {
+                    // NewConnectionOnly: Don't trigger for already-connected controllers
+                    _fileLogger?.Info($"NewConnectionOnly: Controller already connected at startup, waiting for reconnection");
+                }
             }
             else
             {
@@ -162,10 +171,8 @@ namespace ControlUp
 
         private ControllerDetector.ControllerState GetControllerStateForMode(FullscreenTriggerMode mode)
         {
-            bool xinputOnly = mode == FullscreenTriggerMode.XInputController ||
-                              mode == FullscreenTriggerMode.XInputControllerOnStartup;
-
-            return ControllerDetector.GetControllerState(xinputOnly);
+            // All simplified modes detect any controller type (XInput + DirectInput/HID)
+            return ControllerDetector.GetControllerState(xinputOnly: false);
         }
 
         private void StartMonitoring()
@@ -174,8 +181,8 @@ namespace ControlUp
                 StartHotkeyMonitoring();
 
             var triggerMode = Settings.Settings.FullscreenTriggerMode;
-            bool needsConnectionMonitoring = triggerMode == FullscreenTriggerMode.XInputController ||
-                                              triggerMode == FullscreenTriggerMode.AnyController;
+            bool needsConnectionMonitoring = triggerMode == FullscreenTriggerMode.NewConnectionOnly ||
+                                              triggerMode == FullscreenTriggerMode.AnyControllerAnytime;
 
             if (needsConnectionMonitoring)
             {
@@ -214,9 +221,6 @@ namespace ControlUp
                 _connectionTimer.Tick -= OnConnectionTimerTick;
                 _connectionTimer = null;
             }
-
-            // SDL DISABLED FOR TESTING
-            // SdlControllerWrapper.Shutdown();
 
             _fileLogger?.Info("Stopped monitoring");
         }
@@ -391,10 +395,9 @@ namespace ControlUp
         {
             var triggerMode = Settings.Settings.FullscreenTriggerMode;
 
-            // Skip startup modes - they only check at startup
+            // Skip disabled and startup modes - they only check at startup
             if (triggerMode == FullscreenTriggerMode.Disabled ||
-                triggerMode == FullscreenTriggerMode.XInputControllerOnStartup ||
-                triggerMode == FullscreenTriggerMode.AnyControllerOnStartup)
+                triggerMode == FullscreenTriggerMode.StartupOnly)
             {
                 return;
             }
@@ -710,8 +713,7 @@ namespace ControlUp
                 return;
             }
 
-            bool isStartupMode = newTriggerMode == FullscreenTriggerMode.XInputControllerOnStartup ||
-                                  newTriggerMode == FullscreenTriggerMode.AnyControllerOnStartup;
+            bool isStartupMode = newTriggerMode == FullscreenTriggerMode.StartupOnly;
 
             if (isStartupMode)
             {
