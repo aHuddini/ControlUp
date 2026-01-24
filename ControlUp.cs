@@ -35,6 +35,8 @@ namespace ControlUp
 
         // Hotkey tracking
         private volatile bool _hotkeyWasTriggered = false;
+        private DateTime _hotkeyPressStartTime = DateTime.MinValue;
+        private bool _hotkeyLongPressTriggered = false;
 
         // Components
         private FileLogger _fileLogger;
@@ -222,7 +224,22 @@ namespace ControlUp
                 _connectionTimer = null;
             }
 
-            _fileLogger?.Info("Stopped monitoring");
+            // Release SDL resources
+            try
+            {
+                SdlControllerWrapper.CloseController();
+                SdlControllerWrapper.Shutdown();
+            }
+            catch { }
+
+            // Release DirectInput/HID resources
+            try
+            {
+                DirectInputWrapper.Cleanup();
+            }
+            catch { }
+
+            _fileLogger?.Info("Stopped monitoring and released controller resources");
         }
 
         private void HotkeyPollingLoop(int intervalMs, CancellationToken token)
@@ -322,21 +339,64 @@ namespace ControlUp
 
                     if (!hotkeyPressed)
                     {
+                        // Hotkey released - reset tracking
                         _hotkeyWasTriggered = false;
+                        _hotkeyPressStartTime = DateTime.MinValue;
+                        _hotkeyLongPressTriggered = false;
                     }
-                    else if (!_hotkeyWasTriggered)
+                    else
                     {
-                        _hotkeyWasTriggered = true;
-                        _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} pressed (Controller: {controllerName})");
+                        // Hotkey is currently pressed
+                        bool requireLongPress = Settings.Settings.RequireLongPress;
+                        int longPressDelayMs = Settings.Settings.LongPressDelayMs;
 
-                        string finalName = controllerName;
-                        var dispatcher = Application.Current?.Dispatcher;
-                        if (dispatcher != null && !dispatcher.HasShutdownStarted)
+                        if (requireLongPress)
                         {
-                            dispatcher.BeginInvoke(new Action(() =>
+                            // Long press mode
+                            if (_hotkeyPressStartTime == DateTime.MinValue)
                             {
-                                TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, finalName);
-                            }));
+                                // Just started pressing
+                                _hotkeyPressStartTime = DateTime.Now;
+                            }
+                            else if (!_hotkeyLongPressTriggered)
+                            {
+                                // Check if held long enough
+                                double heldMs = (DateTime.Now - _hotkeyPressStartTime).TotalMilliseconds;
+                                if (heldMs >= longPressDelayMs)
+                                {
+                                    _hotkeyLongPressTriggered = true;
+                                    _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} long-pressed for {heldMs:F0}ms (Controller: {controllerName})");
+
+                                    string finalName = controllerName;
+                                    var dispatcher = Application.Current?.Dispatcher;
+                                    if (dispatcher != null && !dispatcher.HasShutdownStarted)
+                                    {
+                                        dispatcher.BeginInvoke(new Action(() =>
+                                        {
+                                            TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, finalName);
+                                        }));
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            // Instant tap mode (original behavior)
+                            if (!_hotkeyWasTriggered)
+                            {
+                                _hotkeyWasTriggered = true;
+                                _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} pressed (Controller: {controllerName})");
+
+                                string finalName = controllerName;
+                                var dispatcher = Application.Current?.Dispatcher;
+                                if (dispatcher != null && !dispatcher.HasShutdownStarted)
+                                {
+                                    dispatcher.BeginInvoke(new Action(() =>
+                                    {
+                                        TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, finalName);
+                                    }));
+                                }
+                            }
                         }
                     }
 
@@ -432,13 +492,17 @@ namespace ControlUp
         {
             switch (hotkey)
             {
-                // Combo hotkeys
+                // Combo hotkeys - Start combos
                 case ControllerHotkey.StartPlusRB:
                     return (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0 &&
                            (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
                 case ControllerHotkey.StartPlusLB:
                     return (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0 &&
                            (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
+                case ControllerHotkey.StartPlusBack:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0;
+                // Combo hotkeys - Back combos
                 case ControllerHotkey.BackPlusStart:
                     return (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0 &&
                            (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0;
@@ -461,6 +525,18 @@ namespace ControlUp
                 case ControllerHotkey.GuidePlusLB:
                     return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0 &&
                            (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
+                // Shoulder button combos
+                case ControllerHotkey.LBPlusRB:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
+                case ControllerHotkey.LBPlusRBPlusStart:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0;
+                case ControllerHotkey.LBPlusRBPlusBack:
+                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 &&
+                           (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0;
                 // Single button hotkeys
                 case ControllerHotkey.Guide:
                     return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0;
@@ -477,13 +553,17 @@ namespace ControlUp
         {
             switch (hotkey)
             {
-                // Combo hotkeys
+                // Combo hotkeys - Start combos
                 case ControllerHotkey.StartPlusRB:
                     return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0 &&
                            (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
                 case ControllerHotkey.StartPlusLB:
                     return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0 &&
                            (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
+                case ControllerHotkey.StartPlusBack:
+                    return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.Back) != 0;
+                // Combo hotkeys - Back combos
                 case ControllerHotkey.BackPlusStart:
                     return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0 &&
                            (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
@@ -506,6 +586,18 @@ namespace ControlUp
                 case ControllerHotkey.GuidePlusLB:
                     return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
                            (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
+                // Shoulder button combos
+                case ControllerHotkey.LBPlusRB:
+                    return (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
+                case ControllerHotkey.LBPlusRBPlusStart:
+                    return (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
+                case ControllerHotkey.LBPlusRBPlusBack:
+                    return (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0 &&
+                           (buttons & SdlControllerWrapper.SdlButtons.Back) != 0;
                 // Single button hotkeys
                 case ControllerHotkey.Guide:
                     return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0;
@@ -545,6 +637,15 @@ namespace ControlUp
                     return reading.PS && reading.R1;
                 case ControllerHotkey.GuidePlusLB:
                     return reading.PS && reading.L1;
+                // Shoulder button combos
+                case ControllerHotkey.StartPlusBack:
+                    return reading.Options && reading.Share;
+                case ControllerHotkey.LBPlusRB:
+                    return reading.L1 && reading.R1;
+                case ControllerHotkey.LBPlusRBPlusStart:
+                    return reading.L1 && reading.R1 && reading.Options;
+                case ControllerHotkey.LBPlusRBPlusBack:
+                    return reading.L1 && reading.R1 && reading.Share;
                 // Single button hotkeys
                 case ControllerHotkey.Guide:
                     return reading.PS;
@@ -572,14 +673,10 @@ namespace ControlUp
             timer.Start();
         }
 
-        private void TriggerFullscreenSwitch(FullscreenTriggerSource source, string controllerName)
+        private void TriggerFullscreenSwitch(FullscreenTriggerSource source, string controllerName = null)
         {
-            _fileLogger?.Info($"TriggerFullscreenSwitch called: source={source}, controller={controllerName}");
-
-            // Set popup flag BEFORE any SDL operations and give hotkey loop time to notice
-            // This ensures exclusive SDL access for the dialog
             _popupShowing = true;
-            Thread.Sleep(150); // Wait for hotkey loop to exit SDL section
+            _fileLogger?.Info($"TriggerFullscreenSwitch called with source: {source}, controller: {controllerName ?? "unknown"}");
 
             try
             {
@@ -589,49 +686,40 @@ namespace ControlUp
 
                 if (skipPopup)
                 {
-                    _fileLogger?.Info($"Skipping popup (source: {source}), switching directly");
-                    Application.Current.Dispatcher.Invoke(() => SwitchToFullscreen());
+                    _fileLogger?.Info($"Skipping popup (source: {source}), switching directly to fullscreen");
+                    SwitchToFullscreen();
+                    _popupShowing = false;
                 }
                 else
                 {
-                    Application.Current.Dispatcher.Invoke(() =>
-                    {
-                        var dialog = new ControllerDetectedDialog(Settings.Settings, source, controllerName);
-                        var result = dialog.ShowDialog();
+                    var dialog = new ControllerDetectedDialog(Settings.Settings, source, controllerName);
+                    var result = dialog.ShowDialog();
 
-                        if (result == true && dialog.UserSelectedYes)
+                    _fileLogger?.Info($"Dialog closed with result: {result}, UserSelectedYes: {dialog?.UserSelectedYes}");
+                    _popupShowing = false;
+
+                    if (result == true && dialog.UserSelectedYes)
+                    {
+                        _fileLogger?.Info("User selected Yes - waiting 50ms before switching to fullscreen");
+                        // Wait for dialog to fully close before launching fullscreen
+                        DelayedTrigger(50, () =>
                         {
-                            _fileLogger?.Info("User selected Yes - switching to fullscreen");
-                            // Delay the switch slightly to ensure dialog is fully closed
-                            var switchTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-                            switchTimer.Tick += (s, args) =>
-                            {
-                                switchTimer.Stop();
-                                SwitchToFullscreen();
-                            };
-                            switchTimer.Start();
-                        }
-                        else
-                        {
-                            _fileLogger?.Info("User cancelled or dialog timed out");
-                        }
-                    });
+                            _fileLogger?.Info("Delay complete - switching to fullscreen now");
+                            SwitchToFullscreen();
+                        });
+                    }
+                    else
+                    {
+                        _fileLogger?.Info("User selected Cancel or dialog timed out");
+                    }
                 }
             }
             catch (Exception ex)
             {
                 _fileLogger?.Error($"Error triggering fullscreen: {ex.Message}");
+                _fileLogger?.Error($"Stack trace: {ex.StackTrace}");
                 Logger.Error(ex, "ControlUp: Error triggering fullscreen switch");
-            }
-            finally
-            {
-                _popupClosedTime = DateTime.Now;
                 _popupShowing = false;
-                _fileLogger?.Info("Popup closed, _popupShowing = false");
-
-                // Hint to GC to collect dialog resources
-                // This helps prevent handle accumulation from repeated dialog opens
-                GC.Collect(0, GCCollectionMode.Optimized);
             }
         }
 
@@ -642,6 +730,8 @@ namespace ControlUp
 
             if (File.Exists(fullscreenExe))
             {
+                // Just launch - Playnite's internal pipe system handles the mode switch
+                // Don't call Shutdown() - let Playnite coordinate the transition
                 var startInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = fullscreenExe,
@@ -651,8 +741,6 @@ namespace ControlUp
 
                 System.Diagnostics.Process.Start(startInfo);
                 _fileLogger?.Info("Fullscreen app launched");
-
-                Application.Current.Shutdown();
             }
             else
             {

@@ -262,6 +262,12 @@ namespace ControlUp.Common
             _cachedReportLength = 0;
         }
 
+        /// <summary>Release any cached HID device handles.</summary>
+        public static void Cleanup()
+        {
+            CloseController();
+        }
+
         private static HidControllerReading ParseHidReport(byte[] report, ControllerType type)
         {
             var result = new HidControllerReading { IsValid = false };

@@ -26,8 +26,26 @@ namespace ControlUp
             get => settings;
             set
             {
+                if (settings != null)
+                {
+                    settings.PropertyChanged -= Settings_PropertyChanged;
+                }
                 settings = value;
+                if (settings != null)
+                {
+                    settings.PropertyChanged += Settings_PropertyChanged;
+                }
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(LongPressSliderEnabled));
+            }
+        }
+
+        private void Settings_PropertyChanged(object sender, System.ComponentModel.PropertyChangedEventArgs e)
+        {
+            if (e.PropertyName == nameof(ControlUpSettings.EnableHotkey) ||
+                e.PropertyName == nameof(ControlUpSettings.RequireLongPress))
+            {
+                OnPropertyChanged(nameof(LongPressSliderEnabled));
             }
         }
 
@@ -39,6 +57,9 @@ namespace ControlUp
             FullscreenTriggerMode.AnyControllerAnytime,
             FullscreenTriggerMode.StartupOnly
         };
+
+        // Computed property for long press slider enabled state
+        public bool LongPressSliderEnabled => Settings?.EnableHotkey == true && Settings?.RequireLongPress == true;
 
         public ControlUpSettingsViewModel(ControlUpPlugin plugin, IPlayniteAPI playniteApi)
         {

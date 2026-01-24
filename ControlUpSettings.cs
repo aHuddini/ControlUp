@@ -36,6 +36,8 @@ namespace ControlUp
         private ControllerHotkey _hotkeyCombo = ControllerHotkey.StartPlusRB;
         private bool _skipPopupOnHotkey = false;
         private int _hotkeyPollingIntervalMs = 70;
+        private bool _requireLongPress = false;
+        private int _longPressDelayMs = 500;
 
         public bool EnableHotkey
         {
@@ -53,6 +55,20 @@ namespace ControlUp
         {
             get => _skipPopupOnHotkey;
             set => SetValue(ref _skipPopupOnHotkey, value);
+        }
+
+        /// <summary>Require long press instead of instant tap for hotkey activation.</summary>
+        public bool RequireLongPress
+        {
+            get => _requireLongPress;
+            set => SetValue(ref _requireLongPress, value);
+        }
+
+        /// <summary>Duration in ms to hold hotkey for long press (300-2000). Default: 500ms.</summary>
+        public int LongPressDelayMs
+        {
+            get => _longPressDelayMs;
+            set => SetValue(ref _longPressDelayMs, Math.Max(300, Math.Min(2000, value)));
         }
 
         /// <summary>Polling interval in ms (5-500). Lower = more responsive. Default: 70ms.</summary>
@@ -232,13 +248,17 @@ namespace ControlUp
 
     public enum ControllerHotkey
     {
-        // Combo hotkeys
+        // Combo hotkeys - Start combos
         [Description("Start + RB (Options + R1)")]
         StartPlusRB,
 
         [Description("Start + LB (Options + L1)")]
         StartPlusLB,
 
+        [Description("Start + Back (Options + Share)")]
+        StartPlusBack,
+
+        // Combo hotkeys - Back/Share combos
         [Description("Back + Start (Share + Options)")]
         BackPlusStart,
 
@@ -248,6 +268,7 @@ namespace ControlUp
         [Description("Back + LB (Share + L1)")]
         BackPlusLB,
 
+        // Combo hotkeys - Guide/PS combos
         [Description("Guide + Start (PS + Options)")]
         GuidePlusStart,
 
@@ -260,7 +281,17 @@ namespace ControlUp
         [Description("Guide + LB (PS + L1)")]
         GuidePlusLB,
 
-        // Single button hotkeys
+        // Combo hotkeys - Shoulder button combos
+        [Description("LB + RB (L1 + R1)")]
+        LBPlusRB,
+
+        [Description("LB + RB + Start")]
+        LBPlusRBPlusStart,
+
+        [Description("LB + RB + Back")]
+        LBPlusRBPlusBack,
+
+        // Single button hotkeys (best used with long press)
         [Description("Guide (PS/Xbox Button)")]
         Guide,
 
