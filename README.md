@@ -7,6 +7,12 @@
   <img src="https://img.shields.io/badge/version-1.0.3-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
+<p align="center">
+  <a href="https://ko-fi.com/Z8Z11SG2IK">
+    <img src="https://ko-fi.com/img/githubbutton_sm.svg" alt="ko-fi">
+  </a>
+</p>
+
 ## About
 A Playnite extension that detects game controller connections and gamepad hotkeys, displaying a customizable popup prompting users to switch to fullscreen mode.
 
