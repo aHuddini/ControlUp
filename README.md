@@ -39,7 +39,6 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 - **Controller Hotkey**: Trigger fullscreen with button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons with long press
 - **Controller Navigation**: Navigate the popup with D-pad/thumbsticks, A to confirm, B to cancel
 
-
 ## Installation
 
 1. Download the latest `.pext` file from the [Releases](https://github.com/aHuddini/ControlUp/releases) page
@@ -80,6 +79,24 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 - Windows 10 or later (for acrylic blur effect)
 - Xbox, PlayStation, or compatible gamepad
 
+## Changelog
+
+See [CHANGELOG.md](CHANGELOG.md) for version history.
+
+## Troubleshooting
+
+### Fullscreen mode doesn't launch after pressing Yes
+
+If the popup closes but fullscreen mode never appears, **Windows SmartScreen** may be blocking the launch. This happens because ControlUp launches `Playnite.FullscreenApp.exe` as a new process.
+
+**Solution:**
+1. Navigate to your Playnite installation folder
+2. Right-click on `Playnite.FullscreenApp.exe`
+3. Select **Properties**
+4. At the bottom of the General tab, if you see "This file came from another computer and might be blocked to help protect this computer", check the **Unblock** checkbox
+5. Click **Apply** and **OK**
+
+Alternatively, you can run `Playnite.FullscreenApp.exe` manually once and click "Run anyway" when SmartScreen prompts you.
 
 ## Development
 
@@ -99,38 +116,15 @@ Run the packaging script:
 
 The `.pext` file will be created in the `pext` folder.
 
+### Libraries & Dependencies
+- **Playnite SDK** - Extension framework
+- **SDL2** - Controller detection and input mapping (zlib license)
+- **MaterialDesignThemes & MaterialDesignColors** - WPF UI components (MIT)
+- **Microsoft.Xaml.Behaviors.Wpf** - XAML behaviors (MIT)
+
+### Third-Party Acknowledgments
+See [LICENSE](LICENSE) file for component licenses and acknowledgments.
+
 ## License
 
-MIT License - see [LICENSE](LICENSE) file for details
-
-## Troubleshooting
-
-### Fullscreen mode doesn't launch after pressing Yes
-
-If the popup closes but fullscreen mode never appears, **Windows SmartScreen** may be blocking the launch. This happens because ControlUp launches `Playnite.FullscreenApp.exe` as a new process.
-
-**Solution:**
-1. Navigate to your Playnite installation folder
-2. Right-click on `Playnite.FullscreenApp.exe`
-3. Select **Properties**
-4. At the bottom of the General tab, if you see "This file came from another computer and might be blocked to help protect this computer", check the **Unblock** checkbox
-5. Click **Apply** and **OK**
-
-Alternatively, you can run `Playnite.FullscreenApp.exe` manually once and click "Run anyway" when SmartScreen prompts you.
-
-### Desktop mode closes but nothing happens
-
-Check the Playnite log (`playnite.log`) for errors like "The operation was canceled by the user" - this typically indicates SmartScreen interference (see above).
-
-## Support
-
-If you encounter issues or have suggestions:
-
-1. Enable logging in the extension settings
-2. Check the log file in the extension folder (click "Open Extension Folder" in settings)
-3. Also check Playnite's main log at `%AppData%\Playnite\playnite.log`
-4. Create an issue with detailed information about your setup
-
-## Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for version history.
+MIT License - see [LICENSE](LICENSE) file for details and third-party acknowledgements
