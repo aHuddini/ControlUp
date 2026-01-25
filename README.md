@@ -27,12 +27,12 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 
 ## Features
 
-- **Controller Detection Popup**: When a controller is connected, a customizable popup appears asking if you want to switch to fullscreen mode
-- **Controller Navigation**: Navigate the popup with D-pad/thumbsticks, A to confirm, B to cancel
-- **Controller Hotkey**: Trigger fullscreen with button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons with long press
 - **Detection Modes**: New connection only, any controller anytime, or startup only
-- **Customizable Notification**: Position, size, timing, acrylic blur, colors, and borders
-- **Live Preview**: Test notification appearance from settings
+- **Controller Detection Popup**: When a controller is connected, a customizable popup appears asking if you want to switch to fullscreen mode
+- **Customizable Pop-up**: Position, size, timing, acrylic blur, colors, and borders, live preview
+- **Controller Hotkey**: Trigger fullscreen with button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons with long press
+- **Controller Navigation**: Navigate the popup with D-pad/thumbsticks, A to confirm, B to cancel
+
 
 ## Installation
 
