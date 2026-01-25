@@ -38,6 +38,14 @@ namespace ControlUp
         private DateTime _hotkeyPressStartTime = DateTime.MinValue;
         private bool _hotkeyLongPressTriggered = false;
 
+        // Idle mode - reduces resource usage when no controller is connected
+        private volatile bool _isInIdleMode = false;
+        private DateTime _lastControllerSeenTime = DateTime.MinValue;
+
+        // Lazy HID - only check PlayStation controllers frequently if we've seen one before
+        private volatile bool _hasSeenPlayStationController = false;
+        private int _hidCheckCounter = 0;
+
         // Components
         private FileLogger _fileLogger;
 
@@ -161,7 +169,7 @@ namespace ControlUp
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
         {
             _fileLogger?.Info("=== Application Stopped ===");
-            StopMonitoring();
+            StopMonitoring(fullShutdown: true);
         }
 
         public override ISettings GetSettings(bool firstRunSettings) => Settings;
@@ -206,7 +214,7 @@ namespace ControlUp
             _fileLogger?.Info($"Started hotkey monitoring ({interval}ms interval)");
         }
 
-        private void StopMonitoring()
+        private void StopMonitoring(bool fullShutdown = false)
         {
             if (_hotkeyCts != null)
             {
@@ -224,11 +232,24 @@ namespace ControlUp
                 _connectionTimer = null;
             }
 
+            // Reset idle mode state
+            _isInIdleMode = false;
+            _lastControllerSeenTime = DateTime.MinValue;
+            _hidCheckCounter = 0;
+            // Note: Keep _hasSeenPlayStationController - once we know user has a PS controller, remember it
+
             // Release SDL resources
+            // NOTE: Only call SDL_Quit() on full application shutdown
+            // Calling SDL_Quit() mid-session corrupts COM apartment state and breaks WPF dialogs
+            // (causes InvalidCastException on ITfThreadMgr when ShowDialog is called)
             try
             {
                 SdlControllerWrapper.CloseController();
-                SdlControllerWrapper.Shutdown();
+                if (fullShutdown)
+                {
+                    SdlControllerWrapper.Shutdown();
+                    _fileLogger?.Info("SDL fully shutdown (application stopping)");
+                }
             }
             catch { }
 
@@ -245,40 +266,57 @@ namespace ControlUp
         private void HotkeyPollingLoop(int intervalMs, CancellationToken token)
         {
             // Note: We primarily use XInput for hotkey detection since it's thread-safe.
-            // SDL is used as fallback for non-XInput controllers (like DualSense via Bluetooth).
-            // SDL calls are protected by locks but we avoid calling it when dialog is open
-            // since the dialog also uses SDL for navigation.
+            // HID is used as fallback for PlayStation controllers (DualSense/DualShock).
+            //
+            // IDLE MODE: When no controller is detected for a configurable time, we enter idle mode:
+            // - Polling interval increases (default: 70ms -> 1000ms)
+            // - HID checks are reduced (lazy HID - only check frequently if PS controller was seen)
+            // This reduces CPU usage when user has no controller connected.
 
             int consecutiveErrors = 0;
             const int MAX_CONSECUTIVE_ERRORS = 10;
             int loopIterations = 0;
             DateTime lastLoopLog = DateTime.Now;
 
-            _fileLogger?.Info($"[HotkeyLoop] Started with {intervalMs}ms interval");
+            // Read idle mode settings
+            bool idleModeEnabled = Settings.Settings.EnableIdleMode;
+            int idleTimeoutMs = Settings.Settings.IdleTimeoutSeconds * 1000;
+            int idleIntervalMs = Settings.Settings.IdlePollingIntervalMs;
+
+            _fileLogger?.Info($"[HotkeyLoop] Started with {intervalMs}ms interval (idle mode: {(idleModeEnabled ? $"enabled, timeout={idleTimeoutMs}ms, idle interval={idleIntervalMs}ms" : "disabled")})");
 
             while (!token.IsCancellationRequested)
             {
                 loopIterations++;
+                _hidCheckCounter++;
+                var now = DateTime.Now;
 
-                // Log every 30 seconds
-                if ((DateTime.Now - lastLoopLog).TotalSeconds >= 30)
+                // Determine current polling interval based on idle state
+                int currentInterval = (_isInIdleMode && idleModeEnabled) ? idleIntervalMs : intervalMs;
+
+                // Log status every 30 seconds (60 seconds in idle mode)
+                int logIntervalSec = _isInIdleMode ? 60 : 30;
+                if ((now - lastLoopLog).TotalSeconds >= logIntervalSec)
                 {
-                    lastLoopLog = DateTime.Now;
-                    _fileLogger?.Debug($"[HotkeyLoop] {loopIterations} iterations completed");
+                    lastLoopLog = now;
+                    string modeStr = _isInIdleMode ? "IDLE" : "ACTIVE";
+                    _fileLogger?.Debug($"[HotkeyLoop] {loopIterations} iterations, mode={modeStr}, interval={currentInterval}ms, seenPS={_hasSeenPlayStationController}");
                 }
+
                 try
                 {
                     if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing)
                     {
-                        Thread.Sleep(intervalMs);
+                        Thread.Sleep(currentInterval);
                         continue;
                     }
 
                     bool hotkeyPressed = false;
                     string controllerName = null;
+                    bool controllerDetectedThisIteration = false;
 
                     // Check XInput controllers (use GetStateEx for Guide button support)
-                    // XInput is thread-safe and works for Xbox controllers + many third-party controllers
+                    // XInput is thread-safe, cheap, and works for Xbox controllers + many third-party controllers
                     ushort xinputButtons = 0;
                     bool hasXInputController = false;
 
@@ -290,6 +328,7 @@ namespace ControlUp
                             if (XInputWrapper.GetStateEx(slot, ref state) == XInputWrapper.ERROR_SUCCESS)
                             {
                                 hasXInputController = true;
+                                controllerDetectedThisIteration = true;
                                 xinputButtons |= state.Gamepad.wButtons;
                             }
                         }
@@ -315,15 +354,33 @@ namespace ControlUp
                         }
                     }
 
-                    // Use HID for PlayStation controllers (DualSense/DualShock) instead of SDL
-                    // HID reading uses the Windows HID API directly - no resource leaks
-                    if (!hotkeyPressed && !_popupShowing)
+                    // HID check for PlayStation controllers - use lazy initialization
+                    // - If we've never seen a PS controller, only check every ~50 iterations (~3-5 seconds at 70ms)
+                    // - Once we've seen a PS controller, check every iteration
+                    // - In idle mode, always check (we're already polling slowly)
+                    bool shouldCheckHid = !_popupShowing && !hotkeyPressed;
+                    if (shouldCheckHid && !_hasSeenPlayStationController && !_isInIdleMode)
+                    {
+                        // Lazy HID: only check every 50 iterations if we've never seen a PS controller
+                        shouldCheckHid = (_hidCheckCounter % 50) == 0;
+                    }
+
+                    if (shouldCheckHid)
                     {
                         try
                         {
                             var hidReading = DirectInputWrapper.GetHidControllerReading();
                             if (hidReading.IsValid)
                             {
+                                controllerDetectedThisIteration = true;
+
+                                // Remember that we've seen a PlayStation controller - enable full HID polling
+                                if (!_hasSeenPlayStationController)
+                                {
+                                    _hasSeenPlayStationController = true;
+                                    _fileLogger?.Info("[HotkeyLoop] PlayStation controller detected - enabling full HID polling");
+                                }
+
                                 hotkeyPressed = IsHidHotkeyPressed(hidReading, Settings.Settings.HotkeyCombo);
                                 if (hotkeyPressed)
                                 {
@@ -334,6 +391,41 @@ namespace ControlUp
                         catch (Exception hidEx)
                         {
                             _fileLogger?.Error($"HID error in hotkey loop: {hidEx.Message}");
+                        }
+                    }
+
+                    // Update idle mode state based on controller presence
+                    if (idleModeEnabled)
+                    {
+                        if (controllerDetectedThisIteration)
+                        {
+                            _lastControllerSeenTime = now;
+                            if (_isInIdleMode)
+                            {
+                                _isInIdleMode = false;
+                                _fileLogger?.Info("[HotkeyLoop] Controller detected - exiting idle mode, resuming fast polling");
+                            }
+                        }
+                        else
+                        {
+                            // No controller detected - check if we should enter idle mode
+                            if (!_isInIdleMode)
+                            {
+                                if (_lastControllerSeenTime == DateTime.MinValue)
+                                {
+                                    // Never seen a controller - start idle timer from now
+                                    _lastControllerSeenTime = now;
+                                }
+                                else
+                                {
+                                    double msSinceLastSeen = (now - _lastControllerSeenTime).TotalMilliseconds;
+                                    if (msSinceLastSeen >= idleTimeoutMs)
+                                    {
+                                        _isInIdleMode = true;
+                                        _fileLogger?.Info($"[HotkeyLoop] No controller for {msSinceLastSeen / 1000:F0}s - entering idle mode (polling every {idleIntervalMs}ms)");
+                                    }
+                                }
+                            }
                         }
                     }
 
@@ -356,12 +448,12 @@ namespace ControlUp
                             if (_hotkeyPressStartTime == DateTime.MinValue)
                             {
                                 // Just started pressing
-                                _hotkeyPressStartTime = DateTime.Now;
+                                _hotkeyPressStartTime = now;
                             }
                             else if (!_hotkeyLongPressTriggered)
                             {
                                 // Check if held long enough
-                                double heldMs = (DateTime.Now - _hotkeyPressStartTime).TotalMilliseconds;
+                                double heldMs = (now - _hotkeyPressStartTime).TotalMilliseconds;
                                 if (heldMs >= longPressDelayMs)
                                 {
                                     _hotkeyLongPressTriggered = true;
@@ -417,7 +509,7 @@ namespace ControlUp
                     }
                 }
 
-                Thread.Sleep(intervalMs);
+                Thread.Sleep(currentInterval);
             }
         }
 

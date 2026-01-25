@@ -78,6 +78,32 @@ namespace ControlUp
             set => SetValue(ref _hotkeyPollingIntervalMs, Math.Max(5, Math.Min(500, value)));
         }
 
+        // Idle mode settings - reduce polling when no controller detected
+        private bool _enableIdleMode = true;
+        private int _idleTimeoutSeconds = 30;
+        private int _idlePollingIntervalMs = 1000;
+
+        /// <summary>Enable idle mode to reduce CPU usage when no controller is detected.</summary>
+        public bool EnableIdleMode
+        {
+            get => _enableIdleMode;
+            set => SetValue(ref _enableIdleMode, value);
+        }
+
+        /// <summary>Seconds without controller before entering idle mode. Default: 30s.</summary>
+        public int IdleTimeoutSeconds
+        {
+            get => _idleTimeoutSeconds;
+            set => SetValue(ref _idleTimeoutSeconds, Math.Max(10, Math.Min(120, value)));
+        }
+
+        /// <summary>Polling interval in idle mode (500-5000ms). Default: 1000ms.</summary>
+        public int IdlePollingIntervalMs
+        {
+            get => _idlePollingIntervalMs;
+            set => SetValue(ref _idlePollingIntervalMs, Math.Max(500, Math.Min(5000, value)));
+        }
+
         // Notification Settings
         private NotificationPosition _notificationPosition = NotificationPosition.TopCenter;
         private int _notificationDurationSeconds = 20;

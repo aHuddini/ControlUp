@@ -521,10 +521,13 @@ namespace ControlUp.Dialogs
                 _controllerCts = null;
             }
 
-            // Close SDL controller and shutdown SDL (release resources until next use)
+            // Close SDL controller handle but DO NOT call SDL_Quit()
+            // SDL_Quit() corrupts the COM apartment state which breaks WPF's text input system
+            // on subsequent ShowDialog() calls, causing InvalidCastException on ITfThreadMgr
             SdlControllerWrapper.CloseController();
-            SdlControllerWrapper.Shutdown();
-            Logger?.Info($"[Dialog] SDL shutdown, resources released");
+            // NOTE: Intentionally NOT calling SdlControllerWrapper.Shutdown() here
+            // SDL stays initialized for the lifetime of the plugin to avoid COM corruption
+            Logger?.Info($"[Dialog] SDL controller closed (SDL stays initialized to avoid COM issues)");
 
             Logger?.Info($"[Dialog] Dialog #{_dialogId} cleanup complete");
 

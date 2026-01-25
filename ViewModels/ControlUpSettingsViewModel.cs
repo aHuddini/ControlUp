@@ -130,7 +130,8 @@ namespace ControlUp
                         {
                             sb.AppendLine("  No controller detected");
                         }
-                        SdlControllerWrapper.Shutdown();
+                        // NOTE: Intentionally NOT calling Shutdown() here
+                        // SDL_Quit() corrupts COM apartment state and breaks WPF dialogs
                     }
                     else
                     {
@@ -194,7 +195,8 @@ namespace ControlUp
                     if (SdlControllerWrapper.Initialize())
                     {
                         controllerName = SdlControllerWrapper.GetControllerName();
-                        SdlControllerWrapper.Shutdown();
+                        // NOTE: Intentionally NOT calling Shutdown() here
+                        // SDL_Quit() corrupts COM apartment state and breaks WPF dialogs
                     }
                 }
                 if (string.IsNullOrEmpty(controllerName))
