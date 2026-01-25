@@ -1,4 +1,4 @@
-# ControlUp Playnite Extension [EXPERIMENTAL]
+# ControlUp Playnite Extension
 <p align="center">
   <img src="graphicassets/iconfonttitle.png" alt="ControlUp Icon" width="256" height="256">
 </p>
@@ -36,7 +36,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 
 ## Installation
 
-1. Download the latest `.pext` file from the [Releases](https://github.com/yourusername/ControlUp/releases) page
+1. Download the latest `.pext` file from the [Releases](https://github.com/aHuddini/ControlUp/releases) page
 2. Double-click the `.pext` file to install, or drag it into Playnite
 3. Restart Playnite when prompted
 4. Configure the extension in Settings > Extensions > ControlUp

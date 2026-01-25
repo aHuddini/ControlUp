@@ -6,6 +6,7 @@ obj/
 package/
 package2/
 pext/
+addonprep/
 
 # Visual Studio
 .vs/
