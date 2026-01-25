@@ -99,78 +99,47 @@ namespace ControlUp
             try
             {
                 var sb = new StringBuilder();
-                sb.AppendLine("Scanning for connected controllers...\n");
 
-                var controllers = new List<string>();
-
-                // Check XInput (Xbox controllers)
+                // XInput Detection (Xbox controllers, wired or wireless via Xbox adapter)
+                sb.AppendLine("XInput (Xbox/XInput-compatible):");
                 var xinputInfo = XInputWrapper.GetControllerInfo();
                 if (xinputInfo.Connected)
                 {
-                    string wireless = xinputInfo.IsWireless ? " [Wireless]" : "";
-                    controllers.Add($"{xinputInfo.Name}{wireless} [XInput]");
+                    string wireless = xinputInfo.IsWireless ? " (Wireless)" : " (Wired)";
+                    sb.AppendLine($"  {xinputInfo.Name}{wireless}");
+                }
+                else
+                {
+                    sb.AppendLine("  No controller detected");
                 }
 
-                // Check SDL (all controller types including PlayStation)
-                string sdlControllerName = null;
+                sb.AppendLine();
+
+                // SDL Detection (cross-platform, includes PlayStation via HIDAPI)
+                sb.AppendLine("SDL (PlayStation/Generic):");
                 try
                 {
                     if (SdlControllerWrapper.Initialize())
                     {
-                        sdlControllerName = SdlControllerWrapper.GetControllerName();
+                        var sdlControllerName = SdlControllerWrapper.GetControllerName();
                         if (!string.IsNullOrEmpty(sdlControllerName))
                         {
-                            // Only add if it's not an Xbox controller (avoid duplicates)
-                            bool isXboxController = sdlControllerName.IndexOf("Xbox", StringComparison.OrdinalIgnoreCase) >= 0;
-                            if (!isXboxController || !xinputInfo.Connected)
-                            {
-                                controllers.Add($"{sdlControllerName} [SDL]");
-                            }
+                            sb.AppendLine($"  {sdlControllerName}");
+                        }
+                        else
+                        {
+                            sb.AppendLine("  No controller detected");
                         }
                         SdlControllerWrapper.Shutdown();
                     }
-                }
-                catch { }
-
-                // Check DirectInput/HID as fallback (PlayStation controllers)
-                // Only if SDL didn't find a PlayStation controller
-                bool sdlFoundPlayStation = !string.IsNullOrEmpty(sdlControllerName) &&
-                    (sdlControllerName.IndexOf("DualSense", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                     sdlControllerName.IndexOf("DualShock", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                     sdlControllerName.IndexOf("PS5", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                     sdlControllerName.IndexOf("PS4", StringComparison.OrdinalIgnoreCase) >= 0);
-
-                if (!sdlFoundPlayStation)
-                {
-                    try
+                    else
                     {
-                        var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
-                        foreach (var hidName in hidControllers)
-                        {
-                            // Only add PlayStation controllers not already detected
-                            bool isPlayStation = hidName.IndexOf("DualSense", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                                 hidName.IndexOf("DualShock", StringComparison.OrdinalIgnoreCase) >= 0 ||
-                                                 hidName.IndexOf("Wireless Controller", StringComparison.OrdinalIgnoreCase) >= 0;
-                            if (isPlayStation)
-                            {
-                                controllers.Add($"{hidName} [DirectInput]");
-                            }
-                        }
-                    }
-                    catch { }
-                }
-
-                if (controllers.Count > 0)
-                {
-                    sb.AppendLine($"Detected {controllers.Count} controller(s):");
-                    foreach (var controller in controllers)
-                    {
-                        sb.AppendLine($"  - {controller}");
+                        sb.AppendLine("  SDL not available");
                     }
                 }
-                else
+                catch (Exception ex)
                 {
-                    sb.AppendLine("No controllers detected.");
+                    sb.AppendLine($"  Error: {ex.Message}");
                 }
 
                 DetectedControllersText = sb.ToString();

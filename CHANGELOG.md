@@ -1,5 +1,28 @@
 # ControlUp Changelog
 
+## Version 1.0.3 (January 24, 2026)
+
+### Features
+- **Long Press Hotkey Support**: Option to require holding the hotkey instead of instant tap
+  - Configurable duration (300-2000ms, default 500ms)
+  - Recommended for single-button hotkeys like Guide/PS button
+- **Expanded Hotkey Options**: Added many more controller button combinations
+  - Guide/PS button combos (Guide+Start, Guide+Back, Guide+RB, Guide+LB)
+  - Shoulder button combos (LB+RB, LB+RB+Start, LB+RB+Back)
+  - Single button hotkeys (Guide, Back, Start) - best with long press enabled
+- **PlayStation Controller Support**: Improved detection for DualSense and DualShock controllers via SDL HIDAPI
+
+### Fixes
+- **Fullscreen Mode Switching**: Fixed reliability issues with switching to fullscreen mode
+  - Added 50ms delay after dialog closes before launching fullscreen app
+  - Removed Application.Shutdown() call that caused race conditions
+  - Let Playnite's internal pipe system handle mode coordination
+- **Resource Cleanup**: Properly release SDL and DirectInput/HID resources when stopping monitoring
+
+### Documentation
+- Added Troubleshooting section for Windows SmartScreen blocking issues
+- Updated Support section with additional log file locations
+
 ## Version 1.0.1 (January 20, 2026)
 
 ### Features

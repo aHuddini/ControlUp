@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.2-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/version-1.0.3-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
 ## About
@@ -16,23 +16,23 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 *Currently Tested on an Xbox Series X USB/Wireless Controller*
 
+## What's New in 1.0.3
+
+- **Long press hotkey support** - Hold instead of tap for single-button hotkeys like Guide
+- **More hotkey combos** - Guide+Start, LB+RB, and single button options
+- **Improved fullscreen switching** - Fixed reliability issues with mode transitions. No longer send a simple F11 shortcut :)
+- **PlayStation controller support** - Better DualSense/DualShock detection via SDL
+
+See [CHANGELOG.md](CHANGELOG.md) for full details.
+
 ## Features
 
 - **Controller Detection Popup**: When a controller is connected, a customizable popup appears asking if you want to switch to fullscreen mode
-- **Controller Navigation Support**: Navigate the popup using your controller - D-pad, thumbsticks, A to confirm, B to cancel
-- **Controller Hotkey Support**: Trigger request to go to fullscreen mode directly with controller button combinations (Start+RB, Start+LB, etc.)
-- **Multiple Detection Modes**:
-  - USB/Wired Xbox controllers (XInput)
-  - Bluetooth wireless controllers (Windows.Gaming.Input)
-  - Any controller type
-  - On-startup detection options
-- **Fully Customizable Notification**:
-  - Position (7 screen positions)
-  - Size and timing
-  - Acrylic blur effect with tint color
-  - Background color and opacity
-  - Border styling and corner radius
-- **Live Preview**: Test your notification UI settings before saving
+- **Controller Navigation**: Navigate the popup with D-pad/thumbsticks, A to confirm, B to cancel
+- **Controller Hotkey**: Trigger fullscreen with button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons with long press
+- **Detection Modes**: New connection only, any controller anytime, or startup only
+- **Customizable Notification**: Position, size, timing, acrylic blur, colors, and borders
+- **Live Preview**: Test notification appearance from settings
 
 ## Installation
 
@@ -45,37 +45,34 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 ### General Settings
 
-- **Controller Type to Detect**: Choose which controller type triggers the popup
-  - Disabled - No controller detection
-  - USB Controller - Detect USB/wired Xbox controllers
-  - Bluetooth Controller - Detect Bluetooth wireless controllers
-  - Any Controller - Detect any controller type
-  - USB/Bluetooth On Startup - Check only when Playnite starts
-
+- **Detection Mode**: When to trigger the fullscreen popup
+  - Disabled - No automatic switching
+  - New Connection Only - Trigger when controller is newly connected
+  - Any Controller Anytime - Trigger on startup and new connections
+  - Startup Only - Only check when Playnite starts
+- **Skip Popup on Connection**: Switch directly to fullscreen without showing popup
 - **Enable Logging**: Turn on detailed logging for troubleshooting
-- **Detect Controllers**: Test button to see which controllers are currently connected
 
 ### Hotkey Settings
 
-- **Enable Controller Hotkey**: Enable/disable controller hotkey to trigger fullscreen
-- **Hotkey Combination**: Choose button combination (Start+RB, Start+LB, Back+Start, Back+RB, Back+LB)
-- **Skip Popup on Hotkey**: Go directly to fullscreen without showing popup when hotkey is pressed
-- **Polling Interval**: How often to check for hotkey press (50-100ms recommended for responsiveness)
+- **Hotkey Combination**: Choose from many button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons
+- **Long Press**: Require holding the hotkey instead of instant tap (recommended for single buttons like Guide)
+- **Long Press Duration**: How long to hold (300-2000ms)
+- **Skip Popup on Hotkey**: Go directly to fullscreen without showing popup
+- **Polling Interval**: How often to check for hotkey press (50-100ms recommended)
 
 ### Notification Settings
 
-- **Position**: Choose where the notification appears (Top Left/Center/Right, Center, Bottom Left/Center/Right)
-- **Edge Margin**: Distance from screen edge
-- **Size**: Width and height of the notification
-- **Timing**: Auto-close duration (5-30 seconds)
-- **Blur Effect**: Enable/disable acrylic blur, adjust opacity and tint color
-- **Visual Style**: Background color/opacity, border color/thickness, corner radius
+- **Position**: 7 screen positions available
+- **Size & Timing**: Adjustable width, height, and auto-close duration
+- **Blur Effect**: Acrylic blur with adjustable opacity and tint color
+- **Visual Style**: Background, border, and corner radius customization
 
 ## Requirements
 
 - Playnite 10 or later
 - Windows 10 or later (for acrylic blur effect)
-- Xbox controller or compatible gamepad
+- Xbox, PlayStation, or compatible gamepad
 
 
 ## Development
