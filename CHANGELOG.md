@@ -1,5 +1,27 @@
 # ControlUp Changelog
 
+## Version 1.0.4 (January 25, 2026)
+
+### Stability Fixes
+- **Critical: Fixed popup crash when opened multiple times** - Resolved `InvalidCastException` on `ITfThreadMgr` that occurred when opening the popup repeatedly (e.g., via notification preview or hotkey)
+  - Root cause: `SDL_Quit()` was corrupting COM apartment state, breaking WPF's Text Services Framework
+  - SDL now stays initialized for the plugin's lifetime, only shutting down on application exit
+
+### Performance Improvements
+- **Idle Mode**: Reduces CPU usage when no controller is connected
+  - After 30 seconds without a controller, polling interval increases from 70ms to 1000ms
+  - Immediately returns to fast polling when a controller is detected
+  - Configurable timeout (10-120s) and idle interval (500-5000ms) in settings
+- **Lazy HID Initialization**: Reduces resource usage for users without PlayStation controllers
+  - HID/DirectInput enumeration only runs every ~3.5 seconds until a PlayStation controller is first detected
+  - Once detected, switches to full-speed polling for responsive hotkey detection
+
+### Settings
+- Added "Power Saving (Idle Mode)" section in settings UI
+  - Enable/disable idle mode
+  - Configure timeout before entering idle mode
+  - Configure polling interval while in idle mode
+
 ## Version 1.0.3 (January 24, 2026)
 
 ### Features
