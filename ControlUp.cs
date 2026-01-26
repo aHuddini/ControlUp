@@ -200,6 +200,13 @@ namespace ControlUp
 
         private void StartHotkeyMonitoring()
         {
+            // Initialize SDL for non-XInput controllers (8BitDo, PlayStation, etc.)
+            // SDL will be used as fallback when no XInput controller is detected
+            if (SdlControllerWrapper.Initialize())
+            {
+                _fileLogger?.Info("SDL initialized for non-XInput controller hotkey detection");
+            }
+
             var interval = Settings.Settings.HotkeyPollingIntervalMs;
             _hotkeyCts = new CancellationTokenSource();
             _hotkeyTask = Task.Run(() => HotkeyPollingLoop(interval, _hotkeyCts.Token));
@@ -315,25 +322,25 @@ namespace ControlUp
                         }
                     }
 
-                    // Use HID for PlayStation controllers (DualSense/DualShock) instead of SDL
-                    // HID reading uses the Windows HID API directly - no resource leaks
-                    if (!hotkeyPressed && !_popupShowing)
+                    // Use SDL as fallback for any non-XInput controller (8BitDo, PlayStation, etc.)
+                    // SDL has mappings for thousands of controllers via gamecontrollerdb.txt
+                    if (!hotkeyPressed && !hasXInputController && !_popupShowing)
                     {
                         try
                         {
-                            var hidReading = DirectInputWrapper.GetHidControllerReading();
-                            if (hidReading.IsValid)
+                            var sdlReading = SdlControllerWrapper.GetCurrentReading();
+                            if (sdlReading.IsValid)
                             {
-                                hotkeyPressed = IsHidHotkeyPressed(hidReading, Settings.Settings.HotkeyCombo);
+                                hotkeyPressed = IsSdlHotkeyPressed(sdlReading.Buttons, Settings.Settings.HotkeyCombo);
                                 if (hotkeyPressed)
                                 {
-                                    controllerName = ControllerDetector.GetControllerName(xinputOnly: false) ?? "PlayStation Controller";
+                                    controllerName = SdlControllerWrapper.GetControllerName() ?? "Controller";
                                 }
                             }
                         }
-                        catch (Exception hidEx)
+                        catch (Exception sdlEx)
                         {
-                            _fileLogger?.Error($"HID error in hotkey loop: {hidEx.Message}");
+                            _fileLogger?.Error($"SDL error in hotkey loop: {sdlEx.Message}");
                         }
                     }
 
