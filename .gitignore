@@ -33,6 +33,7 @@ temp_test/
 
 # Planning docs
 planning/
+releases/
 
 # OS generated files
 .DS_Store
