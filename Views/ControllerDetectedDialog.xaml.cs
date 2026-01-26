@@ -1,7 +1,6 @@
+using Playnite.SDK.Events;
 using System;
 using System.Runtime.InteropServices;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
@@ -29,12 +28,8 @@ namespace ControlUp.Dialogs
         private DispatcherTimer _autoCloseTimer;
         private int _remainingSeconds;
 
-        // SDL2 controller monitoring
-        private CancellationTokenSource _controllerCts;
-        private SdlControllerWrapper.SdlButtons _lastButtons = SdlControllerWrapper.SdlButtons.None;
+        // UI selection state
         private int _selectedIndex = 0; // 0 = Yes, 1 = Cancel
-        private bool _thumbstickWasCentered = true;
-        private const short THUMBSTICK_DEADZONE = 16000; // ~50% of max range
 
         // Windows Composition API for blur
         [DllImport("user32.dll")]
@@ -95,6 +90,45 @@ namespace ControlUp.Dialogs
             PositionWindow();
         }
 
+        /// <summary>
+        /// Handles controller input forwarded from the main plugin via SDK events.
+        /// Called on the UI thread by the main plugin's OnDesktopControllerButtonStateChanged handler.
+        /// </summary>
+        public void HandleControllerInput(ControllerInput button, ControllerInputState state)
+        {
+            // Only respond to button presses
+            if (state != ControllerInputState.Pressed)
+                return;
+
+            ResetTimer();
+
+            switch (button)
+            {
+                // D-pad and stick navigation
+                case ControllerInput.DPadLeft:
+                case ControllerInput.DPadRight:
+                case ControllerInput.LeftStickLeft:
+                case ControllerInput.LeftStickRight:
+                case ControllerInput.RightStickLeft:
+                case ControllerInput.RightStickRight:
+                    SwitchSelection();
+                    break;
+
+                // A button = confirm selection
+                case ControllerInput.A:
+                    if (_selectedIndex == 0)
+                        YesButton_Click(this, new RoutedEventArgs());
+                    else
+                        CancelButton_Click(this, new RoutedEventArgs());
+                    break;
+
+                // B button = cancel
+                case ControllerInput.B:
+                    CancelButton_Click(this, new RoutedEventArgs());
+                    break;
+            }
+        }
+
         private void ApplyTriggerSourceText()
         {
             if (_triggerSource == FullscreenTriggerSource.Hotkey)
@@ -146,9 +180,6 @@ namespace ControlUp.Dialogs
             };
             _autoCloseTimer.Tick += AutoCloseTimer_Tick;
             _autoCloseTimer.Start();
-
-            // Initialize SDL and start controller monitoring
-            StartControllerMonitoring();
         }
 
         private void PositionWindow()
@@ -279,114 +310,6 @@ namespace ControlUp.Dialogs
             return Color.FromRgb(0x1E, 0x1E, 0x1E); // Default dark gray
         }
 
-        private void StartControllerMonitoring()
-        {
-            _controllerCts = new CancellationTokenSource();
-
-            // Initialize SDL and open controller
-            if (!SdlControllerWrapper.Initialize())
-            {
-                Logger?.Error($"[Dialog] Failed to initialize SDL");
-                return;
-            }
-
-            if (!SdlControllerWrapper.OpenController())
-            {
-                Logger?.Info($"[Dialog] No SDL controller found, dialog will use keyboard only");
-                return;
-            }
-
-            Logger?.Info($"[Dialog] SDL controller opened for dialog navigation");
-
-            // Get initial button state to avoid triggering on already-pressed buttons
-            var initialReading = SdlControllerWrapper.GetCurrentReading();
-            if (initialReading.IsValid)
-            {
-                _lastButtons = initialReading.Buttons;
-            }
-
-            Task.Run(async () =>
-            {
-                await Task.Delay(100); // Initial delay to let window fully load
-
-                while (!_controllerCts.Token.IsCancellationRequested)
-                {
-                    try
-                    {
-                        PollSdlController();
-                        await Task.Delay(50, _controllerCts.Token);
-                    }
-                    catch (TaskCanceledException)
-                    {
-                        break;
-                    }
-                    catch (Exception ex)
-                    {
-                        Logger?.Error($"[Dialog] SDL poll error: {ex.Message}");
-                    }
-                }
-            }, _controllerCts.Token);
-        }
-
-        private void PollSdlController()
-        {
-            var reading = SdlControllerWrapper.GetCurrentReading();
-            if (!reading.IsValid) return;
-
-            var currentButtons = reading.Buttons;
-            var pressedButtons = currentButtons & ~_lastButtons; // Newly pressed
-
-            // Check thumbstick for navigation
-            bool thumbstickLeft = reading.LeftStickX < -THUMBSTICK_DEADZONE || reading.RightStickX < -THUMBSTICK_DEADZONE;
-            bool thumbstickRight = reading.LeftStickX > THUMBSTICK_DEADZONE || reading.RightStickX > THUMBSTICK_DEADZONE;
-            bool thumbstickCentered = !thumbstickLeft && !thumbstickRight;
-
-            // Handle thumbstick navigation (only trigger once per movement)
-            if (_thumbstickWasCentered && (thumbstickLeft || thumbstickRight))
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    ResetTimer();
-                    SwitchSelection();
-                });
-                _thumbstickWasCentered = false;
-            }
-            else if (thumbstickCentered)
-            {
-                _thumbstickWasCentered = true;
-            }
-
-            // Handle button presses
-            if (pressedButtons != SdlControllerWrapper.SdlButtons.None)
-            {
-                Dispatcher.Invoke(() =>
-                {
-                    ResetTimer();
-
-                    // D-pad left/right to switch selection
-                    if ((pressedButtons & (SdlControllerWrapper.SdlButtons.DPadLeft | SdlControllerWrapper.SdlButtons.DPadRight)) != 0)
-                    {
-                        SwitchSelection();
-                    }
-                    // A button = confirm selection
-                    else if ((pressedButtons & SdlControllerWrapper.SdlButtons.A) != 0)
-                    {
-                        if (_selectedIndex == 0)
-                            YesButton_Click(this, new RoutedEventArgs());
-                        else
-                            CancelButton_Click(this, new RoutedEventArgs());
-                    }
-                    // B button = cancel
-                    else if ((pressedButtons & SdlControllerWrapper.SdlButtons.B) != 0)
-                    {
-                        CancelButton_Click(this, new RoutedEventArgs());
-                    }
-                });
-            }
-
-            _lastButtons = currentButtons;
-        }
-
         private void ResetTimer()
         {
             _remainingSeconds = _settings.NotificationDurationSeconds;
@@ -485,7 +408,6 @@ namespace ControlUp.Dialogs
         private void YesButton_Click(object sender, RoutedEventArgs e)
         {
             _autoCloseTimer?.Stop();
-            _controllerCts?.Cancel();
             UserSelectedYes = true;
             DialogResult = true;
             Close();
@@ -494,7 +416,6 @@ namespace ControlUp.Dialogs
         private void CancelButton_Click(object sender, RoutedEventArgs e)
         {
             _autoCloseTimer?.Stop();
-            _controllerCts?.Cancel();
             UserSelectedYes = false;
             DialogResult = false;
             Close();
@@ -502,7 +423,7 @@ namespace ControlUp.Dialogs
 
         protected override void OnClosed(EventArgs e)
         {
-            Logger?.Info($"[Dialog] Closing dialog #{_dialogId} - starting cleanup");
+            Logger?.Info($"[Dialog] Closing dialog #{_dialogId}");
 
             // Stop and unhook auto-close timer
             if (_autoCloseTimer != null)
@@ -511,20 +432,6 @@ namespace ControlUp.Dialogs
                 _autoCloseTimer.Tick -= AutoCloseTimer_Tick;
                 _autoCloseTimer = null;
             }
-
-            // Cancel controller monitoring and wait for it to stop
-            if (_controllerCts != null)
-            {
-                _controllerCts.Cancel();
-                Thread.Sleep(100); // Give the polling loop time to exit
-                _controllerCts.Dispose();
-                _controllerCts = null;
-            }
-
-            // Close SDL controller handle but DON'T shutdown SDL
-            // SDL_Quit corrupts COM apartment state causing ITfThreadMgr cast failures
-            SdlControllerWrapper.CloseController();
-            Logger?.Info($"[Dialog] SDL controller closed (SDL stays initialized)");
 
             Logger?.Info($"[Dialog] Dialog #{_dialogId} cleanup complete");
 

@@ -6,7 +6,6 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
-using System.Linq;
 using System.Reflection;
 using System.Text;
 using System.Windows;
@@ -222,13 +221,11 @@ namespace ControlUp
             {
                 var sb = new StringBuilder();
 
-                // XInput Detection (Xbox controllers, wired or wireless via Xbox adapter)
-                sb.AppendLine("XInput (Xbox or other compatible gamepads):");
-                var xinputInfo = XInputWrapper.GetControllerInfo();
-                if (xinputInfo.Connected)
+                // XInput Detection (Xbox controllers)
+                sb.AppendLine("XInput (Xbox controllers):");
+                if (XInputWrapper.IsControllerConnected())
                 {
-                    string wireless = xinputInfo.IsWireless ? " (Wireless)" : " (Wired)";
-                    sb.AppendLine($"  {xinputInfo.Name}{wireless}");
+                    sb.AppendLine("  Controller connected");
                 }
                 else
                 {
@@ -237,56 +234,10 @@ namespace ControlUp
 
                 sb.AppendLine();
 
-                // SDL Detection (cross-platform, includes PlayStation via HIDAPI)
-                // Note: SDL stays initialized for plugin lifetime to avoid COM corruption
-                sb.AppendLine("SDL (PlayStation or other compatible gamepads):");
-                try
-                {
-                    if (SdlControllerWrapper.Initialize())
-                    {
-                        var sdlControllerName = SdlControllerWrapper.GetControllerName();
-                        if (!string.IsNullOrEmpty(sdlControllerName))
-                        {
-                            sb.AppendLine($"  {sdlControllerName}");
-                        }
-                        else
-                        {
-                            sb.AppendLine("  No controller detected");
-                        }
-                        // Don't call Shutdown() - SDL_Quit corrupts COM apartment state
-                    }
-                    else
-                    {
-                        sb.AppendLine("  SDL not available");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    sb.AppendLine($"  Error: {ex.Message}");
-                }
-
-                // HID Detection (shows all detected game controllers and adapters)
-                sb.AppendLine();
-                sb.AppendLine("HID (Gamepads + Misc Devices):");
-                try
-                {
-                    var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
-                    if (hidControllers.Count > 0)
-                    {
-                        foreach (var controller in hidControllers)
-                        {
-                            sb.AppendLine($"  {controller}");
-                        }
-                    }
-                    else
-                    {
-                        sb.AppendLine("  No devices detected");
-                    }
-                }
-                catch (Exception ex)
-                {
-                    sb.AppendLine($"  Error: {ex.Message}");
-                }
+                // Note about Playnite handling SDL controllers
+                sb.AppendLine("Note: PlayStation, Nintendo, and other controllers are");
+                sb.AppendLine("detected by Playnite when 'Controller input' is enabled");
+                sb.AppendLine("in Settings > General > Desktop Mode.");
 
                 DetectedControllersText = sb.ToString();
                 OnPropertyChanged(nameof(DetectedControllersText));
@@ -333,28 +284,7 @@ namespace ControlUp
         {
             try
             {
-                // Try to get controller name from XInput first, then SDL, then DirectInput
-                // Note: SDL stays initialized for plugin lifetime to avoid COM corruption
-                var controllerName = XInputWrapper.GetControllerName();
-                if (string.IsNullOrEmpty(controllerName))
-                {
-                    if (SdlControllerWrapper.Initialize())
-                    {
-                        controllerName = SdlControllerWrapper.GetControllerName();
-                        // Don't call Shutdown() - SDL_Quit corrupts COM apartment state
-                    }
-                }
-                if (string.IsNullOrEmpty(controllerName))
-                {
-                    var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
-                    if (hidControllers.Count > 0)
-                    {
-                        controllerName = hidControllers[0];
-                    }
-                }
-                controllerName = controllerName ?? "Controller";
-
-                var dialog = new ControllerDetectedDialog(Settings, FullscreenTriggerSource.Connection, controllerName);
+                var dialog = new ControllerDetectedDialog(Settings, FullscreenTriggerSource.Connection, "Controller");
                 dialog.ShowDialog();
             }
             catch (Exception ex)

@@ -4,10 +4,9 @@ using Playnite.SDK.Plugins;
 using ControlUp.Common;
 using ControlUp.Dialogs;
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
-using System.Threading;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Threading;
 
@@ -17,46 +16,25 @@ namespace ControlUp
     {
         private static readonly ILogger Logger = LogManager.GetLogger();
 
-        // Monitoring
-        private CancellationTokenSource _hotkeyCts;
-        private Task _hotkeyTask;
+        // Connection monitoring (minimal timer for detecting new connections)
         private DispatcherTimer _connectionTimer;
-
-        // Controller state tracking
         private bool _controllerWasConnected = false;
-        private string _lastControllerName = null;
 
-        // Popup state - controls SDL ownership
-        // IMPORTANT: SDL is not thread-safe. Only one component should use SDL at a time.
-        // When _popupShowing is true, the dialog owns SDL exclusively.
+        // Popup state
         private volatile bool _popupShowing = false;
-        private DateTime _popupClosedTime = DateTime.MinValue;
-        private const int SDL_COOLDOWN_MS = 500; // Wait after popup closes before using SDL
+        private DateTime _dialogClosedTime = DateTime.MinValue;
+        private const int DIALOG_CLOSE_COOLDOWN_MS = 500;
 
-        // Hotkey tracking
-        private volatile bool _hotkeyWasTriggered = false;
+        // Hotkey tracking via SDK events
+        private HashSet<ControllerInput> _pressedButtons = new HashSet<ControllerInput>();
+        private volatile bool _hotkeyTriggered = false;
         private DateTime _hotkeyPressStartTime = DateTime.MinValue;
         private bool _hotkeyLongPressTriggered = false;
 
-        // Idle mode - reduces resource usage when no controller is connected
-        private volatile bool _isInIdleMode = false;
-        private DateTime _lastControllerSeenTime = DateTime.MinValue;
+        // Active dialog reference for forwarding controller input
+        private ControllerDetectedDialog _activeDialog = null;
 
-        // Lazy SDL - only check SDL controllers frequently if we've seen one recently
-        private volatile bool _hasSeenSdlController = false;
-        private DateTime _lastSdlCheckTime = DateTime.MinValue;
-        private DateTime _lastSdlControllerSeenTime = DateTime.MinValue;
-        private const int SDL_CHECK_INTERVAL_MS = 3500; // Check every 3.5s when no SDL controller known
-        private const int SDL_FORGET_TIMEOUT_MS = 30000; // Forget SDL controller after 30s of no detection
-
-        // XInput slot caching - reduces API calls from 4 to 1 when controller stays connected
-        private int _cachedXInputSlot = -1;
-
-        // Controller name caching - avoids repeated name lookups on every hotkey press
-        private string _cachedControllerName = null;
-        private bool _isXInputControllerCached = false; // Track which type of controller name is cached
-
-        // Components
+        // Logging
         private FileLogger _fileLogger;
 
         public ControlUpSettingsViewModel Settings { get; private set; }
@@ -72,14 +50,10 @@ namespace ControlUp
                 var extensionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                 _fileLogger = new FileLogger(extensionPath);
                 var version = Assembly.GetExecutingAssembly().GetName().Version;
-                _fileLogger.Info($"=== ControlUp v{version} Starting ===");
+                _fileLogger.Info($"=== ControlUp v{version} Starting (SDK-based input) ===");
 
-                // Share logger with static classes for diagnostics
-                ControllerDetector.Logger = _fileLogger;
-                DirectInputWrapper.Logger = _fileLogger;
-                SdlControllerWrapper.Logger = _fileLogger;
-                ControlUp.Dialogs.ControllerDetectedDialog.Logger = _fileLogger;
-                _fileLogger.Info("Loggers initialized for ControllerDetector, DirectInputWrapper, SDL, and Dialog");
+                // Share logger with dialog
+                ControllerDetectedDialog.Logger = _fileLogger;
             }
             catch
             {
@@ -104,7 +78,7 @@ namespace ControlUp
             var triggerMode = Settings.Settings.FullscreenTriggerMode;
 
             _fileLogger?.Info($"=== Application Started - Mode: {currentMode} ===");
-            _fileLogger?.Info($"Settings: TriggerMode={triggerMode}, Hotkey={Settings.Settings.EnableHotkey}");
+            _fileLogger?.Info($"Settings: TriggerMode={triggerMode}, Hotkey={Settings.Settings.EnableHotkey}, HotkeyCombo={Settings.Settings.HotkeyCombo}");
 
             if (currentMode == ApplicationMode.Fullscreen)
             {
@@ -112,74 +86,43 @@ namespace ControlUp
                 return;
             }
 
-            // Check if this is a startup-only mode
-            bool isStartupMode = triggerMode == FullscreenTriggerMode.StartupOnly;
-
-            // Check initial controller state
-            var controllerState = GetControllerStateForMode(triggerMode);
-            _fileLogger?.Info($"Initial state: Connected={controllerState.IsConnected}, Name={controllerState.Name}");
-
-            if (isStartupMode)
-            {
-                // Startup modes: only trigger at startup, then just monitor hotkeys
-                _controllerWasConnected = controllerState.IsConnected;
-                _lastControllerName = controllerState.Name;
-
-                if (_controllerWasConnected)
-                {
-                    _fileLogger?.Info($"Startup mode: Controller detected, triggering fullscreen");
-                    DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, _lastControllerName));
-                }
-
-                // Start hotkey monitoring if enabled (no connection monitoring for startup modes)
-                if (Settings.Settings.EnableHotkey)
-                    StartHotkeyMonitoring();
-
-                // Store current settings for change detection
-                _lastTriggerMode = triggerMode;
-                _lastEnableHotkey = Settings.Settings.EnableHotkey;
-                return;
-            }
-
-            // Runtime modes (NewConnectionOnly, AnyControllerAnytime):
-            // For AnyControllerAnytime, trigger if controller already connected at startup
-            // For NewConnectionOnly, only trigger on NEW connections (not already connected at startup)
-            if (controllerState.IsConnected)
-            {
-                _controllerWasConnected = true;
-                _lastControllerName = controllerState.Name;
-
-                if (triggerMode == FullscreenTriggerMode.AnyControllerAnytime)
-                {
-                    _fileLogger?.Info($"AnyControllerAnytime: Controller already connected at startup, triggering fullscreen");
-                    DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, controllerState.Name));
-                }
-                else
-                {
-                    // NewConnectionOnly: Don't trigger for already-connected controllers
-                    _fileLogger?.Info($"NewConnectionOnly: Controller already connected at startup, waiting for reconnection");
-                }
-            }
-            else
-            {
-                // No controller connected - start monitoring for connections
-                _controllerWasConnected = false;
-                _lastControllerName = null;
-                _fileLogger?.Info($"Runtime mode: No controller at startup, will monitor for connections");
-            }
-
-            // Start monitoring (hotkeys + connection detection for runtime modes)
-            StartMonitoring();
+            // Check initial controller state using XInput (quick connection check)
+            _controllerWasConnected = XInputWrapper.IsControllerConnected();
+            _fileLogger?.Info($"Initial controller state: Connected={_controllerWasConnected}");
 
             // Store current settings for change detection
             _lastTriggerMode = triggerMode;
             _lastEnableHotkey = Settings.Settings.EnableHotkey;
+
+            // Check if this is a startup-only mode
+            bool isStartupMode = triggerMode == FullscreenTriggerMode.StartupOnly;
+
+            if (isStartupMode)
+            {
+                // Startup modes: only trigger at startup
+                if (_controllerWasConnected)
+                {
+                    _fileLogger?.Info("Startup mode: Controller detected, triggering fullscreen");
+                    DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection));
+                }
+                return;
+            }
+
+            // Runtime modes (NewConnectionOnly, AnyControllerAnytime):
+            if (_controllerWasConnected && triggerMode == FullscreenTriggerMode.AnyControllerAnytime)
+            {
+                _fileLogger?.Info("AnyControllerAnytime: Controller already connected at startup, triggering fullscreen");
+                DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection));
+            }
+
+            // Start connection monitoring for runtime modes
+            StartConnectionMonitoring();
         }
 
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
         {
             _fileLogger?.Info("=== Application Stopped ===");
-            StopMonitoring(fullShutdown: true);
+            StopConnectionMonitoring();
         }
 
         public override ISettings GetSettings(bool firstRunSettings) => Settings;
@@ -189,600 +132,210 @@ namespace ControlUp
             return new ControlUpSettingsView(Settings);
         }
 
-        private ControllerDetector.ControllerState GetControllerStateForMode(FullscreenTriggerMode mode)
+        /// <summary>
+        /// SDK callback - receives all controller button events from Playnite's SDL input system.
+        /// This replaces our custom polling thread.
+        /// </summary>
+        public override void OnDesktopControllerButtonStateChanged(OnControllerButtonStateChangedArgs args)
         {
-            // All simplified modes detect any controller type (XInput + DirectInput/HID)
-            return ControllerDetector.GetControllerState(xinputOnly: false);
+            // Forward to active dialog if showing
+            if (_activeDialog != null && _popupShowing)
+            {
+                try
+                {
+                    Application.Current?.Dispatcher?.Invoke(() =>
+                    {
+                        _activeDialog?.HandleControllerInput(args.Button, args.State);
+                    });
+                }
+                catch { }
+                return; // Don't process hotkeys while dialog is active
+            }
+
+            // Track button states for hotkey combo detection
+            if (args.State == ControllerInputState.Pressed)
+            {
+                _pressedButtons.Add(args.Button);
+            }
+            else
+            {
+                _pressedButtons.Remove(args.Button);
+                // Reset tracking when any button is released
+                _hotkeyTriggered = false;
+                _hotkeyPressStartTime = DateTime.MinValue;
+                _hotkeyLongPressTriggered = false;
+            }
+
+            // Don't check hotkeys if disabled or already in fullscreen
+            if (!Settings.Settings.EnableHotkey ||
+                PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen ||
+                _popupShowing)
+            {
+                return;
+            }
+
+            // Don't trigger immediately after dialog was closed (prevents B button re-trigger)
+            if ((DateTime.Now - _dialogClosedTime).TotalMilliseconds < DIALOG_CLOSE_COOLDOWN_MS)
+            {
+                return;
+            }
+
+            // Check for hotkey combo
+            if (IsHotkeyComboPressed())
+            {
+                bool requireLongPress = Settings.Settings.RequireLongPress;
+                int longPressDelayMs = Settings.Settings.LongPressDelayMs;
+
+                if (requireLongPress)
+                {
+                    // Long press mode - start tracking
+                    if (_hotkeyPressStartTime == DateTime.MinValue)
+                    {
+                        _hotkeyPressStartTime = DateTime.Now;
+                        _fileLogger?.Debug($"Hotkey combo held - starting long press timer ({longPressDelayMs}ms required)");
+                    }
+                    else if (!_hotkeyLongPressTriggered)
+                    {
+                        double heldMs = (DateTime.Now - _hotkeyPressStartTime).TotalMilliseconds;
+                        if (heldMs >= longPressDelayMs)
+                        {
+                            _hotkeyLongPressTriggered = true;
+                            _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} long-pressed for {heldMs:F0}ms");
+                            Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                            {
+                                TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey);
+                            }));
+                        }
+                    }
+                }
+                else
+                {
+                    // Instant tap mode
+                    if (!_hotkeyTriggered)
+                    {
+                        _hotkeyTriggered = true;
+                        _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} detected via SDK");
+                        Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
+                        {
+                            TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey);
+                        }));
+                    }
+                }
+            }
         }
 
-        private void StartMonitoring()
+        private bool IsHotkeyComboPressed()
         {
-            if (Settings.Settings.EnableHotkey)
-                StartHotkeyMonitoring();
+            switch (Settings.Settings.HotkeyCombo)
+            {
+                // Start combos
+                case ControllerHotkey.StartPlusRB:
+                    return _pressedButtons.Contains(ControllerInput.Start) &&
+                           _pressedButtons.Contains(ControllerInput.RightShoulder);
+                case ControllerHotkey.StartPlusLB:
+                    return _pressedButtons.Contains(ControllerInput.Start) &&
+                           _pressedButtons.Contains(ControllerInput.LeftShoulder);
+                case ControllerHotkey.StartPlusBack:
+                    return _pressedButtons.Contains(ControllerInput.Start) &&
+                           _pressedButtons.Contains(ControllerInput.Back);
 
+                // Back combos
+                case ControllerHotkey.BackPlusStart:
+                    return _pressedButtons.Contains(ControllerInput.Back) &&
+                           _pressedButtons.Contains(ControllerInput.Start);
+                case ControllerHotkey.BackPlusRB:
+                    return _pressedButtons.Contains(ControllerInput.Back) &&
+                           _pressedButtons.Contains(ControllerInput.RightShoulder);
+                case ControllerHotkey.BackPlusLB:
+                    return _pressedButtons.Contains(ControllerInput.Back) &&
+                           _pressedButtons.Contains(ControllerInput.LeftShoulder);
+
+                // Guide combos
+                case ControllerHotkey.GuidePlusStart:
+                    return _pressedButtons.Contains(ControllerInput.Guide) &&
+                           _pressedButtons.Contains(ControllerInput.Start);
+                case ControllerHotkey.GuidePlusBack:
+                    return _pressedButtons.Contains(ControllerInput.Guide) &&
+                           _pressedButtons.Contains(ControllerInput.Back);
+                case ControllerHotkey.GuidePlusRB:
+                    return _pressedButtons.Contains(ControllerInput.Guide) &&
+                           _pressedButtons.Contains(ControllerInput.RightShoulder);
+                case ControllerHotkey.GuidePlusLB:
+                    return _pressedButtons.Contains(ControllerInput.Guide) &&
+                           _pressedButtons.Contains(ControllerInput.LeftShoulder);
+
+                // Shoulder combos
+                case ControllerHotkey.LBPlusRB:
+                    return _pressedButtons.Contains(ControllerInput.LeftShoulder) &&
+                           _pressedButtons.Contains(ControllerInput.RightShoulder);
+                case ControllerHotkey.LBPlusRBPlusStart:
+                    return _pressedButtons.Contains(ControllerInput.LeftShoulder) &&
+                           _pressedButtons.Contains(ControllerInput.RightShoulder) &&
+                           _pressedButtons.Contains(ControllerInput.Start);
+                case ControllerHotkey.LBPlusRBPlusBack:
+                    return _pressedButtons.Contains(ControllerInput.LeftShoulder) &&
+                           _pressedButtons.Contains(ControllerInput.RightShoulder) &&
+                           _pressedButtons.Contains(ControllerInput.Back);
+
+                // Single button hotkeys
+                case ControllerHotkey.Guide:
+                    return _pressedButtons.Contains(ControllerInput.Guide);
+                case ControllerHotkey.Back:
+                    return _pressedButtons.Contains(ControllerInput.Back);
+                case ControllerHotkey.Start:
+                    return _pressedButtons.Contains(ControllerInput.Start);
+
+                default:
+                    return false;
+            }
+        }
+
+        private void StartConnectionMonitoring()
+        {
             var triggerMode = Settings.Settings.FullscreenTriggerMode;
             bool needsConnectionMonitoring = triggerMode == FullscreenTriggerMode.NewConnectionOnly ||
                                               triggerMode == FullscreenTriggerMode.AnyControllerAnytime;
 
-            if (needsConnectionMonitoring)
+            if (!needsConnectionMonitoring)
             {
-                // Connection monitoring runs at a slower interval than hotkey polling
-                // to reduce resource usage - controller connections don't need sub-second detection
-                const int CONNECTION_CHECK_INTERVAL_MS = 1000;
-                _connectionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(CONNECTION_CHECK_INTERVAL_MS) };
-                _connectionTimer.Tick += OnConnectionTimerTick;
-                _connectionTimer.Start();
-                _fileLogger?.Info($"Started connection monitoring ({CONNECTION_CHECK_INTERVAL_MS}ms interval)");
+                _fileLogger?.Info("Connection monitoring not needed for current trigger mode");
+                return;
             }
+
+            _connectionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };
+            _connectionTimer.Tick += OnConnectionTimerTick;
+            _connectionTimer.Start();
+            _fileLogger?.Info("Started connection monitoring (1000ms interval)");
         }
 
-        private void StartHotkeyMonitoring()
+        private void StopConnectionMonitoring()
         {
-            // Initialize SDL for non-XInput controllers (8BitDo, PlayStation, etc.)
-            // SDL will be used as fallback when no XInput controller is detected
-            if (SdlControllerWrapper.Initialize())
-            {
-                _fileLogger?.Info("SDL initialized for non-XInput controller hotkey detection");
-            }
-
-            var interval = Settings.Settings.HotkeyPollingIntervalMs;
-            _hotkeyCts = new CancellationTokenSource();
-            _hotkeyTask = Task.Run(() => HotkeyPollingLoop(interval, _hotkeyCts.Token));
-            _fileLogger?.Info($"Started hotkey monitoring ({interval}ms interval)");
-        }
-
-        private void StopMonitoring(bool fullShutdown = false)
-        {
-            if (_hotkeyCts != null)
-            {
-                _hotkeyCts.Cancel();
-                try { _hotkeyTask?.Wait(500); } catch { }
-                _hotkeyCts.Dispose();
-                _hotkeyCts = null;
-                _hotkeyTask = null;
-            }
-
             if (_connectionTimer != null)
             {
                 _connectionTimer.Stop();
                 _connectionTimer.Tick -= OnConnectionTimerTick;
                 _connectionTimer = null;
             }
-
-            // Reset idle mode state
-            _isInIdleMode = false;
-            _lastControllerSeenTime = DateTime.MinValue;
-            _cachedXInputSlot = -1;
-            _cachedControllerName = null;
-            _lastSdlCheckTime = DateTime.MinValue;
-            _lastSdlControllerSeenTime = DateTime.MinValue;
-            _hasSeenSdlController = false;
-
-            // Release SDL resources
-            // NOTE: Only call SDL_Quit() on full application shutdown
-            // Calling SDL_Quit() mid-session corrupts COM apartment state and breaks WPF dialogs
-            // (causes InvalidCastException on ITfThreadMgr when ShowDialog is called)
-            try
-            {
-                SdlControllerWrapper.CloseController();
-                if (fullShutdown)
-                {
-                    SdlControllerWrapper.Shutdown();
-                    _fileLogger?.Info("SDL fully shutdown (application stopping)");
-                }
-            }
-            catch { }
-
-            // Release DirectInput/HID resources
-            try
-            {
-                DirectInputWrapper.Cleanup();
-            }
-            catch { }
-
-            _fileLogger?.Info("Stopped monitoring and released controller resources");
         }
-
-        private void HotkeyPollingLoop(int intervalMs, CancellationToken token)
-        {
-            // Note: We primarily use XInput for hotkey detection since it's thread-safe.
-            // HID is used as fallback for PlayStation controllers (DualSense/DualShock).
-            //
-            // IDLE MODE: When no controller is detected for a configurable time, we enter idle mode:
-            // - Polling interval increases (default: 70ms -> 1000ms)
-            // - HID checks are reduced (lazy HID - only check frequently if PS controller was seen)
-            // This reduces CPU usage when user has no controller connected.
-
-            int consecutiveErrors = 0;
-            const int MAX_CONSECUTIVE_ERRORS = 10;
-            int loopIterations = 0;
-            DateTime lastLoopLog = DateTime.Now;
-
-            // Read idle mode settings
-            bool idleModeEnabled = Settings.Settings.EnableIdleMode;
-            int idleTimeoutMs = Settings.Settings.IdleTimeoutSeconds * 1000;
-            int idleIntervalMs = Settings.Settings.IdlePollingIntervalMs;
-
-            _fileLogger?.Info($"[HotkeyLoop] Started with {intervalMs}ms interval (idle mode: {(idleModeEnabled ? $"enabled, timeout={idleTimeoutMs}ms, idle interval={idleIntervalMs}ms" : "disabled")})");
-
-            while (!token.IsCancellationRequested)
-            {
-                loopIterations++;
-                var now = DateTime.Now;
-
-                // Determine current polling interval based on idle state
-                int currentInterval = (_isInIdleMode && idleModeEnabled) ? idleIntervalMs : intervalMs;
-
-                // Log status every 30 seconds (60 seconds in idle mode)
-                int logIntervalSec = _isInIdleMode ? 60 : 30;
-                if ((now - lastLoopLog).TotalSeconds >= logIntervalSec)
-                {
-                    lastLoopLog = now;
-                    string modeStr = _isInIdleMode ? "IDLE" : "ACTIVE";
-                    _fileLogger?.Debug($"[HotkeyLoop] {loopIterations} iterations, mode={modeStr}, interval={currentInterval}ms, seenSDL={_hasSeenSdlController}");
-                }
-
-                try
-                {
-                    if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing)
-                    {
-                        Thread.Sleep(currentInterval);
-                        continue;
-                    }
-
-                    bool hotkeyPressed = false;
-                    string controllerName = null;
-                    bool controllerDetectedThisIteration = false;
-
-                    // Check XInput controllers (use GetStateEx for Guide button support)
-                    // XInput is thread-safe, cheap, and works for Xbox controllers + many third-party controllers
-                    // Uses slot caching to reduce API calls from 4 to 1 when controller stays in same slot
-                    ushort xinputButtons = 0;
-                    bool hasXInputController = false;
-
-                    // Try cached slot first (most common case - controller stays connected)
-                    if (_cachedXInputSlot >= 0)
-                    {
-                        try
-                        {
-                            XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
-                            if (XInputWrapper.GetStateEx((uint)_cachedXInputSlot, ref state) == XInputWrapper.ERROR_SUCCESS)
-                            {
-                                hasXInputController = true;
-                                controllerDetectedThisIteration = true;
-                                xinputButtons = state.Gamepad.wButtons;
-                            }
-                            else
-                            {
-                                // Controller disconnected from cached slot, will rescan all slots
-                                _cachedXInputSlot = -1;
-                                _cachedControllerName = null;
-                            }
-                        }
-                        catch
-                        {
-                            _cachedXInputSlot = -1;
-                            _cachedControllerName = null;
-                        }
-                    }
-
-                    // Full scan if no cached slot or cached slot failed
-                    // Only use the FIRST controller found to avoid combining button states from multiple controllers
-                    if (!hasXInputController)
-                    {
-                        for (uint slot = 0; slot < 4; slot++)
-                        {
-                            try
-                            {
-                                XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
-                                if (XInputWrapper.GetStateEx(slot, ref state) == XInputWrapper.ERROR_SUCCESS)
-                                {
-                                    hasXInputController = true;
-                                    controllerDetectedThisIteration = true;
-                                    xinputButtons = state.Gamepad.wButtons;
-                                    _cachedXInputSlot = (int)slot;
-                                    break; // Use first controller only
-                                }
-                            }
-                            catch
-                            {
-                                // Individual slot read failed, continue to next
-                            }
-                        }
-                    }
-
-                    if (hasXInputController)
-                    {
-                        // Cache controller name on first detection (avoids repeated API calls)
-                        if (_cachedControllerName == null || !_isXInputControllerCached)
-                        {
-                            try
-                            {
-                                _cachedControllerName = XInputWrapper.GetControllerName() ?? "Xbox Controller";
-                                _isXInputControllerCached = true;
-                            }
-                            catch
-                            {
-                                _cachedControllerName = "Xbox Controller";
-                                _isXInputControllerCached = true;
-                            }
-                        }
-
-                        hotkeyPressed = IsHotkeyPressed(xinputButtons, Settings.Settings.HotkeyCombo);
-                        if (hotkeyPressed)
-                        {
-                            controllerName = _cachedControllerName;
-                        }
-                    }
-
-                    // SDL fallback for non-XInput controllers (8BitDo, PlayStation, etc.)
-                    // Uses time-based lazy checking to reduce CPU usage when no SDL controller is present
-                    // - If we've recently seen an SDL controller, check every iteration
-                    // - If not, only check every SDL_CHECK_INTERVAL_MS (~3.5s)
-                    // - In idle mode, always check (we're already polling slowly)
-                    // - Forget SDL controller if not seen for SDL_FORGET_TIMEOUT_MS (30s)
-                    bool shouldCheckSdl = !_popupShowing && !hotkeyPressed && !hasXInputController;
-
-                    if (shouldCheckSdl)
-                    {
-                        // Reset "seen" flag if controller hasn't been detected for a while
-                        if (_hasSeenSdlController && (now - _lastSdlControllerSeenTime).TotalMilliseconds > SDL_FORGET_TIMEOUT_MS)
-                        {
-                            _hasSeenSdlController = false;
-                            _fileLogger?.Info("[HotkeyLoop] SDL controller not seen for 30s - reverting to lazy SDL polling");
-                        }
-
-                        // Use lazy checking if we haven't seen an SDL controller recently (unless in idle mode)
-                        if (!_hasSeenSdlController && !_isInIdleMode)
-                        {
-                            shouldCheckSdl = (now - _lastSdlCheckTime).TotalMilliseconds >= SDL_CHECK_INTERVAL_MS;
-                        }
-                    }
-
-                    if (shouldCheckSdl)
-                    {
-                        _lastSdlCheckTime = now;
-
-                        try
-                        {
-                            var sdlReading = SdlControllerWrapper.GetCurrentReading();
-                            if (sdlReading.IsValid)
-                            {
-                                controllerDetectedThisIteration = true;
-                                _lastSdlControllerSeenTime = now;
-
-                                // Remember that we've seen an SDL controller - enable full SDL polling
-                                if (!_hasSeenSdlController)
-                                {
-                                    _hasSeenSdlController = true;
-                                    _fileLogger?.Info("[HotkeyLoop] SDL controller detected - enabling full SDL polling");
-                                }
-
-                                // Cache SDL controller name on first detection
-                                if (_cachedControllerName == null || _isXInputControllerCached)
-                                {
-                                    _cachedControllerName = SdlControllerWrapper.GetControllerName() ?? "Controller";
-                                    _isXInputControllerCached = false;
-                                }
-
-                                hotkeyPressed = IsSdlHotkeyPressed(sdlReading.Buttons, Settings.Settings.HotkeyCombo);
-                                if (hotkeyPressed)
-                                {
-                                    controllerName = _cachedControllerName;
-                                }
-                            }
-                        }
-                        catch (Exception sdlEx)
-                        {
-                            _fileLogger?.Error($"SDL error in hotkey loop: {sdlEx.Message}");
-                        }
-                    }
-
-                    // Update idle mode state based on controller presence
-                    if (idleModeEnabled)
-                    {
-                        if (controllerDetectedThisIteration)
-                        {
-                            _lastControllerSeenTime = now;
-                            if (_isInIdleMode)
-                            {
-                                _isInIdleMode = false;
-                                _fileLogger?.Info("[HotkeyLoop] Controller detected - exiting idle mode, resuming fast polling");
-                            }
-                        }
-                        else
-                        {
-                            // No controller detected - check if we should enter idle mode
-                            if (!_isInIdleMode)
-                            {
-                                if (_lastControllerSeenTime == DateTime.MinValue)
-                                {
-                                    // Never seen a controller - start idle timer from now
-                                    _lastControllerSeenTime = now;
-                                }
-                                else
-                                {
-                                    double msSinceLastSeen = (now - _lastControllerSeenTime).TotalMilliseconds;
-                                    if (msSinceLastSeen >= idleTimeoutMs)
-                                    {
-                                        _isInIdleMode = true;
-                                        _fileLogger?.Info($"[HotkeyLoop] No controller for {msSinceLastSeen / 1000:F0}s - entering idle mode (polling every {idleIntervalMs}ms)");
-                                    }
-                                }
-                            }
-                        }
-                    }
-
-                    if (!hotkeyPressed)
-                    {
-                        // Hotkey released - reset tracking
-                        _hotkeyWasTriggered = false;
-                        _hotkeyPressStartTime = DateTime.MinValue;
-                        _hotkeyLongPressTriggered = false;
-                    }
-                    else
-                    {
-                        // Hotkey is currently pressed
-                        bool requireLongPress = Settings.Settings.RequireLongPress;
-                        int longPressDelayMs = Settings.Settings.LongPressDelayMs;
-
-                        if (requireLongPress)
-                        {
-                            // Long press mode
-                            if (_hotkeyPressStartTime == DateTime.MinValue)
-                            {
-                                // Just started pressing
-                                _hotkeyPressStartTime = now;
-                            }
-                            else if (!_hotkeyLongPressTriggered)
-                            {
-                                // Check if held long enough
-                                double heldMs = (now - _hotkeyPressStartTime).TotalMilliseconds;
-                                if (heldMs >= longPressDelayMs)
-                                {
-                                    _hotkeyLongPressTriggered = true;
-                                    _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} long-pressed for {heldMs:F0}ms (Controller: {controllerName})");
-
-                                    string finalName = controllerName;
-                                    var dispatcher = Application.Current?.Dispatcher;
-                                    if (dispatcher != null && !dispatcher.HasShutdownStarted)
-                                    {
-                                        dispatcher.BeginInvoke(new Action(() =>
-                                        {
-                                            TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, finalName);
-                                        }));
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            // Instant tap mode (original behavior)
-                            if (!_hotkeyWasTriggered)
-                            {
-                                _hotkeyWasTriggered = true;
-                                _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} pressed (Controller: {controllerName})");
-
-                                string finalName = controllerName;
-                                var dispatcher = Application.Current?.Dispatcher;
-                                if (dispatcher != null && !dispatcher.HasShutdownStarted)
-                                {
-                                    dispatcher.BeginInvoke(new Action(() =>
-                                    {
-                                        TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, finalName);
-                                    }));
-                                }
-                            }
-                        }
-                    }
-
-                    // Reset error counter on successful iteration
-                    consecutiveErrors = 0;
-                }
-                catch (Exception ex)
-                {
-                    consecutiveErrors++;
-                    _fileLogger?.Error($"Hotkey polling error ({consecutiveErrors}): {ex.Message}");
-
-                    // If we hit too many consecutive errors, slow down to prevent CPU spin
-                    if (consecutiveErrors >= MAX_CONSECUTIVE_ERRORS)
-                    {
-                        _fileLogger?.Error("Too many consecutive errors in hotkey loop, backing off...");
-                        Thread.Sleep(1000); // Back off for 1 second
-                        consecutiveErrors = 0;
-                    }
-                }
-
-                Thread.Sleep(currentInterval);
-            }
-        }
-
-        // Track connection timer ticks for diagnostics
-        private int _connectionTimerTickCount = 0;
-        private DateTime _pluginStartTime = DateTime.Now;
 
         private void OnConnectionTimerTick(object sender, EventArgs e)
         {
-            _connectionTimerTickCount++;
-
-            try
-            {
-                if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen)
-                    return;
-
-                if (_popupShowing)
-                {
-                    // Don't log every tick, this would spam
-                    return;
-                }
-
-                CheckControllerState();
-            }
-            catch (Exception ex)
-            {
-                _fileLogger?.Error($"Connection timer error: {ex.Message}");
-            }
-        }
-
-        // For verbose debugging - track last logged state to avoid spam
-        private static DateTime _lastVerboseLog = DateTime.MinValue;
-
-        private void CheckControllerState()
-        {
-            var triggerMode = Settings.Settings.FullscreenTriggerMode;
-
-            // Skip disabled and startup modes - they only check at startup
-            if (triggerMode == FullscreenTriggerMode.Disabled ||
-                triggerMode == FullscreenTriggerMode.StartupOnly)
-            {
+            if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing)
                 return;
-            }
 
-            var state = GetControllerStateForMode(triggerMode);
-
-            // Verbose logging every 10 seconds for debugging
-            if (Settings.Settings.EnableLogging && (DateTime.Now - _lastVerboseLog).TotalSeconds >= 10)
-            {
-                _lastVerboseLog = DateTime.Now;
-                var uptime = (DateTime.Now - _pluginStartTime).TotalSeconds;
-                _fileLogger?.Info($"[Poll] tick#{_connectionTimerTickCount}, uptime={uptime:F0}s, Connected={state.IsConnected}, Name={state.Name}, Source={state.Source}, WasConnected={_controllerWasConnected}");
-            }
+            bool controllerNowConnected = XInputWrapper.IsControllerConnected();
 
             // Detect NEW connection
-            if (state.IsConnected && !_controllerWasConnected)
+            if (controllerNowConnected && !_controllerWasConnected)
             {
-                _fileLogger?.Info($"New controller detected: {state.Name} (Source: {state.Source})");
+                _fileLogger?.Info("New controller connection detected");
                 _controllerWasConnected = true;
-                _lastControllerName = state.Name;
-                TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, state.Name);
+                TriggerFullscreenSwitch(FullscreenTriggerSource.Connection);
             }
-            else if (!state.IsConnected && _controllerWasConnected)
+            else if (!controllerNowConnected && _controllerWasConnected)
             {
                 _fileLogger?.Info("Controller disconnected - ready for reconnection");
                 _controllerWasConnected = false;
-                _lastControllerName = null;
-            }
-        }
-
-        private bool IsHotkeyPressed(ushort buttons, ControllerHotkey hotkey)
-        {
-            switch (hotkey)
-            {
-                // Combo hotkeys - Start combos
-                case ControllerHotkey.StartPlusRB:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
-                case ControllerHotkey.StartPlusLB:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
-                case ControllerHotkey.StartPlusBack:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0;
-                // Combo hotkeys - Back combos
-                case ControllerHotkey.BackPlusStart:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0;
-                case ControllerHotkey.BackPlusRB:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
-                case ControllerHotkey.BackPlusLB:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
-                // Guide button combo hotkeys - available via XInputGetStateEx
-                case ControllerHotkey.GuidePlusStart:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0;
-                case ControllerHotkey.GuidePlusBack:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0;
-                case ControllerHotkey.GuidePlusRB:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
-                case ControllerHotkey.GuidePlusLB:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0;
-                // Shoulder button combos
-                case ControllerHotkey.LBPlusRB:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0;
-                case ControllerHotkey.LBPlusRBPlusStart:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0;
-                case ControllerHotkey.LBPlusRBPlusBack:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_LEFT_SHOULDER) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_RIGHT_SHOULDER) != 0 &&
-                           (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0;
-                // Single button hotkeys
-                case ControllerHotkey.Guide:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_GUIDE) != 0;
-                case ControllerHotkey.Back:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_BACK) != 0;
-                case ControllerHotkey.Start:
-                    return (buttons & XInputWrapper.XINPUT_GAMEPAD_START) != 0;
-                default:
-                    return false;
-            }
-        }
-
-        private bool IsSdlHotkeyPressed(SdlControllerWrapper.SdlButtons buttons, ControllerHotkey hotkey)
-        {
-            switch (hotkey)
-            {
-                // Combo hotkeys - Start combos
-                case ControllerHotkey.StartPlusRB:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
-                case ControllerHotkey.StartPlusLB:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
-                case ControllerHotkey.StartPlusBack:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.Back) != 0;
-                // Combo hotkeys - Back combos
-                case ControllerHotkey.BackPlusStart:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
-                case ControllerHotkey.BackPlusRB:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
-                case ControllerHotkey.BackPlusLB:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
-                // Guide button combo hotkeys
-                case ControllerHotkey.GuidePlusStart:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
-                case ControllerHotkey.GuidePlusBack:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.Back) != 0;
-                case ControllerHotkey.GuidePlusRB:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
-                case ControllerHotkey.GuidePlusLB:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0;
-                // Shoulder button combos
-                case ControllerHotkey.LBPlusRB:
-                    return (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0;
-                case ControllerHotkey.LBPlusRBPlusStart:
-                    return (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
-                case ControllerHotkey.LBPlusRBPlusBack:
-                    return (buttons & SdlControllerWrapper.SdlButtons.LeftShoulder) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.RightShoulder) != 0 &&
-                           (buttons & SdlControllerWrapper.SdlButtons.Back) != 0;
-                // Single button hotkeys
-                case ControllerHotkey.Guide:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Guide) != 0;
-                case ControllerHotkey.Back:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0;
-                case ControllerHotkey.Start:
-                    return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
-                default:
-                    return false;
             }
         }
 
@@ -794,7 +347,7 @@ namespace ControlUp
             handler = (s, e) =>
             {
                 timer.Stop();
-                timer.Tick -= handler; // Unhook to allow GC
+                timer.Tick -= handler;
                 action();
             };
             timer.Tick += handler;
@@ -804,7 +357,7 @@ namespace ControlUp
         private void TriggerFullscreenSwitch(FullscreenTriggerSource source, string controllerName = null)
         {
             _popupShowing = true;
-            _fileLogger?.Info($"TriggerFullscreenSwitch called with source: {source}, controller: {controllerName ?? "unknown"}");
+            _fileLogger?.Info($"TriggerFullscreenSwitch called with source: {source}");
 
             try
             {
@@ -820,34 +373,38 @@ namespace ControlUp
                 }
                 else
                 {
-                    var dialog = new ControllerDetectedDialog(Settings.Settings, source, controllerName);
-                    var result = dialog.ShowDialog();
+                    _activeDialog = new ControllerDetectedDialog(Settings.Settings, source, controllerName);
+                    var result = _activeDialog.ShowDialog();
 
-                    _fileLogger?.Info($"Dialog closed with result: {result}, UserSelectedYes: {dialog?.UserSelectedYes}");
+                    // Clear pressed buttons and set cooldown
+                    _pressedButtons.Clear();
+                    _dialogClosedTime = DateTime.Now;
+                    _hotkeyTriggered = false;
+                    _hotkeyPressStartTime = DateTime.MinValue;
+                    _hotkeyLongPressTriggered = false;
+
+                    _fileLogger?.Info($"Dialog closed with result: {result}, UserSelectedYes: {_activeDialog?.UserSelectedYes}");
                     _popupShowing = false;
 
-                    if (result == true && dialog.UserSelectedYes)
+                    if (result == true && _activeDialog.UserSelectedYes)
                     {
-                        _fileLogger?.Info("User selected Yes - waiting 50ms before switching to fullscreen");
-                        // Wait for dialog to fully close before launching fullscreen
-                        DelayedTrigger(50, () =>
-                        {
-                            _fileLogger?.Info("Delay complete - switching to fullscreen now");
-                            SwitchToFullscreen();
-                        });
+                        _fileLogger?.Info("User selected Yes - switching to fullscreen");
+                        DelayedTrigger(50, () => SwitchToFullscreen());
                     }
                     else
                     {
                         _fileLogger?.Info("User selected Cancel or dialog timed out");
                     }
+
+                    _activeDialog = null;
                 }
             }
             catch (Exception ex)
             {
                 _fileLogger?.Error($"Error triggering fullscreen: {ex.Message}");
-                _fileLogger?.Error($"Stack trace: {ex.StackTrace}");
                 Logger.Error(ex, "ControlUp: Error triggering fullscreen switch");
                 _popupShowing = false;
+                _activeDialog = null;
             }
         }
 
@@ -858,15 +415,12 @@ namespace ControlUp
 
             if (File.Exists(fullscreenExe))
             {
-                // Just launch - Playnite's internal pipe system handles the mode switch
-                // Don't call Shutdown() - let Playnite coordinate the transition
                 var startInfo = new System.Diagnostics.ProcessStartInfo
                 {
                     FileName = fullscreenExe,
                     UseShellExecute = false,
                     WorkingDirectory = PlayniteApi.Paths.ApplicationPath
                 };
-
                 System.Diagnostics.Process.Start(startInfo);
                 _fileLogger?.Info("Fullscreen app launched");
             }
@@ -902,43 +456,23 @@ namespace ControlUp
 
             _fileLogger?.Info($"Settings changed: TriggerMode {_lastTriggerMode} -> {newTriggerMode}, Hotkey {_lastEnableHotkey} -> {newEnableHotkey}");
 
-            // Stop all existing monitoring
-            StopMonitoring();
+            // Stop existing monitoring
+            StopConnectionMonitoring();
 
             // Reset state
-            _controllerWasConnected = false;
-            _lastControllerName = null;
+            _controllerWasConnected = XInputWrapper.IsControllerConnected();
+            _pressedButtons.Clear();
+            _hotkeyTriggered = false;
 
             // Update tracking
             _lastTriggerMode = newTriggerMode;
             _lastEnableHotkey = newEnableHotkey;
 
-            // Restart monitoring based on new settings
-            if (newTriggerMode == FullscreenTriggerMode.Disabled)
+            // Restart connection monitoring if needed
+            if (newTriggerMode != FullscreenTriggerMode.Disabled &&
+                newTriggerMode != FullscreenTriggerMode.StartupOnly)
             {
-                // Only start hotkey monitoring if enabled
-                if (newEnableHotkey)
-                    StartHotkeyMonitoring();
-                return;
-            }
-
-            bool isStartupMode = newTriggerMode == FullscreenTriggerMode.StartupOnly;
-
-            if (isStartupMode)
-            {
-                // Startup modes: only hotkey monitoring (no connection monitoring mid-session)
-                if (newEnableHotkey)
-                    StartHotkeyMonitoring();
-                _fileLogger?.Info("Startup mode selected - connection monitoring disabled until next app restart");
-            }
-            else
-            {
-                // Runtime modes: full monitoring
-                var controllerState = GetControllerStateForMode(newTriggerMode);
-                _controllerWasConnected = controllerState.IsConnected;
-                _lastControllerName = controllerState.Name;
-                _fileLogger?.Info($"Runtime mode: Current state - Connected={_controllerWasConnected}, Name={_lastControllerName}");
-                StartMonitoring();
+                StartConnectionMonitoring();
             }
         }
     }

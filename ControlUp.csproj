@@ -20,11 +20,10 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="PlayniteSDK" Version="6.11.0.0" PrivateAssets="none" />
+        <PackageReference Include="PlayniteSDK" Version="6.15.0" PrivateAssets="none" />
         <PackageReference Include="Microsoft.CSharp" Version="4.7.0" PrivateAssets="none" />
         <PackageReference Include="MaterialDesignThemes" Version="4.7.0" />
         <PackageReference Include="MaterialDesignColors" Version="2.1.0" />
-        <PackageReference Include="SDL2-CS.dll" Version="2.0.0" />
     </ItemGroup>
     <ItemGroup>
         <Reference Include="System.Windows.Forms" />
@@ -38,9 +37,6 @@
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
         <None Include="LICENSE">
-            <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-        </None>
-        <None Include="SDL2.dll">
             <CopyToOutputDirectory>Always</CopyToOutputDirectory>
         </None>
     </ItemGroup>
