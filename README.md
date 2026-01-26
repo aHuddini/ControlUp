@@ -24,7 +24,7 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 ## What's New in 1.0.5
 
-- **SDL Hotkey Fallback**: Non-XInput controllers (8BitDo, PlayStation, etc.) now work with hotkeys
+- **SDL Hotkey Fallback**: Non-XInput controllers (8BitDo, PlayStation, etc.) should now work with hotkeys
 - **Style Presets**: Quick color scheme presets for notification appearance
 - **Troubleshooting Tab**: In-app help for common issues (SmartScreen, controller modes, hotkeys)
 
