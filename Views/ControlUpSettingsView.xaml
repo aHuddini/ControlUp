@@ -355,5 +355,135 @@
                 </StackPanel>
             </ScrollViewer>
         </TabItem>
+
+        <!-- Troubleshooting Tab -->
+        <TabItem Header="Troubleshooting">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="20">
+                    <TextBlock Text="Troubleshooting" FontSize="18" FontWeight="Bold" Margin="0,0,0,20"/>
+
+                    <!-- SmartScreen Issue -->
+                    <TextBlock Text="Fullscreen Mode Won't Launch" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Symptom:" FontWeight="SemiBold" Foreground="#FFB74D" Margin="0,0,0,5"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,10">
+                                The popup closes after pressing Yes, but fullscreen mode never appears. Desktop mode may close but nothing happens.
+                            </TextBlock>
+
+                            <TextBlock Text="Cause:" FontWeight="SemiBold" Foreground="#FFB74D" Margin="0,0,0,5"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,10">
+                                Windows SmartScreen may be blocking Playnite.FullscreenApp.exe because ControlUp launches it as a new process.
+                            </TextBlock>
+
+                            <TextBlock Text="Solution:" FontWeight="SemiBold" Foreground="#81C784" Margin="0,0,0,5"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                1. Navigate to your Playnite installation folder
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                2. Right-click on Playnite.FullscreenApp.exe and select Properties
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                3. At the bottom of the General tab, check the "Unblock" checkbox if present
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                4. Click Apply and OK
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,10,0,0" FontStyle="Italic">
+                                Alternatively, run Playnite.FullscreenApp.exe manually once and click "Run anyway" when SmartScreen prompts.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Controller Mode Recommendation -->
+                    <TextBlock Text="Controller Input Modes" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="XInput vs DirectInput" FontWeight="SemiBold" Foreground="#64B5F6" Margin="0,0,0,8"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,10">
+                                Many third-party controllers (8BitDo, PowerA, etc.) support multiple input modes. For best performance with ControlUp, use XInput mode when available.
+                            </TextBlock>
+
+                            <TextBlock Text="XInput Mode (Recommended)" FontWeight="SemiBold" Foreground="#81C784" Margin="0,5,0,5"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="10,0,0,5">
+                                • Fastest response time and lowest CPU usage
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="10,0,0,5">
+                                • Native Windows support, no extra drivers needed
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="10,0,0,5">
+                                • Best game compatibility
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="10,0,0,10">
+                                • Full hotkey support with Guide button
+                            </TextBlock>
+
+                            <TextBlock Text="DirectInput / SDL Mode" FontWeight="SemiBold" Foreground="#FFB74D" Margin="0,5,0,5"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="10,0,0,5">
+                                • Supported via SDL fallback (works but slower)
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="10,0,0,5">
+                                • Higher CPU usage due to SDL polling
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="10,0,0,10">
+                                • Some button mappings may vary
+                            </TextBlock>
+
+                            <TextBlock Text="How to Switch Modes (8BitDo Example):" FontWeight="SemiBold" Foreground="#64B5F6" Margin="0,10,0,5"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,10">
+                                Most 8BitDo controllers switch modes by holding a button while powering on. Check your controller's manual for the specific combination (often X+Start for XInput mode).
+                            </TextBlock>
+
+                            <TextBlock Text="Note: PlayStation Controllers" FontWeight="SemiBold" Foreground="#CE93D8" Margin="0,5,0,5"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0">
+                                DualSense (PS5) and DualShock 4 (PS4) controllers do not support XInput mode. They use DirectInput only and are detected via SDL. Expect a slight delay when registering hotkeys compared to XInput controllers.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Hotkey Not Working -->
+                    <TextBlock Text="Hotkey Not Working" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Check These:" FontWeight="SemiBold" Foreground="#FFB74D" Margin="0,0,0,8"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                1. Ensure "Enable controller hotkey" is checked in General settings
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                2. Use the "Detect Controllers" button to verify your controller is recognized
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                3. For Guide/PS button hotkeys, try enabling "Require long press"
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                4. If using DirectInput mode, hotkeys work via SDL fallback (may have slight delay)
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,10,0,0" FontStyle="Italic">
+                                For non-Xbox controllers, XInput mode provides the most reliable hotkey detection.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Log Files -->
+                    <TextBlock Text="Getting Help" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,10">
+                                If you're still having issues, enable detailed logging and check the log files:
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                • ControlUp.log - Extension folder (click "Open Extension Folder" in General tab)
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,10">
+                                • playnite.log - %AppData%\Playnite\playnite.log
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0">
+                                Report issues with log files at: github.com/aHuddini/ControlUp/issues
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
     </TabControl>
 </UserControl>
