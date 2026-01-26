@@ -521,10 +521,10 @@ namespace ControlUp.Dialogs
                 _controllerCts = null;
             }
 
-            // Close SDL controller and shutdown SDL (release resources until next use)
+            // Close SDL controller handle but DON'T shutdown SDL
+            // SDL_Quit corrupts COM apartment state causing ITfThreadMgr cast failures
             SdlControllerWrapper.CloseController();
-            SdlControllerWrapper.Shutdown();
-            Logger?.Info($"[Dialog] SDL shutdown, resources released");
+            Logger?.Info($"[Dialog] SDL controller closed (SDL stays initialized)");
 
             Logger?.Info($"[Dialog] Dialog #{_dialogId} cleanup complete");
 

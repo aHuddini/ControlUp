@@ -238,6 +238,7 @@ namespace ControlUp
                 sb.AppendLine();
 
                 // SDL Detection (cross-platform, includes PlayStation via HIDAPI)
+                // Note: SDL stays initialized for plugin lifetime to avoid COM corruption
                 sb.AppendLine("SDL (PlayStation/Generic):");
                 try
                 {
@@ -252,7 +253,7 @@ namespace ControlUp
                         {
                             sb.AppendLine("  No controller detected");
                         }
-                        SdlControllerWrapper.Shutdown();
+                        // Don't call Shutdown() - SDL_Quit corrupts COM apartment state
                     }
                     else
                     {
@@ -310,13 +311,14 @@ namespace ControlUp
             try
             {
                 // Try to get controller name from XInput first, then SDL, then DirectInput
+                // Note: SDL stays initialized for plugin lifetime to avoid COM corruption
                 var controllerName = XInputWrapper.GetControllerName();
                 if (string.IsNullOrEmpty(controllerName))
                 {
                     if (SdlControllerWrapper.Initialize())
                     {
                         controllerName = SdlControllerWrapper.GetControllerName();
-                        SdlControllerWrapper.Shutdown();
+                        // Don't call Shutdown() - SDL_Quit corrupts COM apartment state
                     }
                 }
                 if (string.IsNullOrEmpty(controllerName))

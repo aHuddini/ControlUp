@@ -3,14 +3,15 @@
 ## Version 1.0.5 (January 26, 2026)
 
 ### Features
-- **DirectInput HID Improvements**: Enhanced controller detection and enumeration
-  - Better handling of HID devices for improved compatibility
-  - Optimized polling intervals for different controller types
-  - Improved resource management for HID operations
+- **SDL Hotkey Fallback for All Controllers**: Non-XInput controllers (8BitDo, PlayStation, etc.) now work with hotkeys
+  - Uses SDL's comprehensive controller database (gamecontrollerdb.txt)
+  - Automatically falls back to SDL when no XInput controller is detected
+- **Style Presets**: Quick color scheme presets for notification appearance
+  - 8 presets: Midnight Blue, Deep Purple, Forest Green, Crimson Red, Sunset Orange, Ocean Teal, Charcoal Gray, Rose Pink
 
 ### Fixes
-- **Performance Optimizations**: Further improvements to CPU usage and responsiveness
-- **Controller Detection**: Minor fixes for edge cases in controller recognition
+- **Fixed popup crash (again)**: Removed remaining SDL_Quit() calls that were still causing COM corruption
+- **Controller Detection**: Improved support for third-party controllers via SDL
 
 ## Version 1.0.4 (January 25, 2026)
 
