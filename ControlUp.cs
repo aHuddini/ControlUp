@@ -42,9 +42,12 @@ namespace ControlUp
         private volatile bool _isInIdleMode = false;
         private DateTime _lastControllerSeenTime = DateTime.MinValue;
 
-        // Lazy HID - only check PlayStation controllers frequently if we've seen one before
-        private volatile bool _hasSeenPlayStationController = false;
-        private int _hidCheckCounter = 0;
+        // Lazy SDL - only check SDL controllers frequently if we've seen one recently
+        private volatile bool _hasSeenSdlController = false;
+        private DateTime _lastSdlCheckTime = DateTime.MinValue;
+        private DateTime _lastSdlControllerSeenTime = DateTime.MinValue;
+        private const int SDL_CHECK_INTERVAL_MS = 3500; // Check every 3.5s when no SDL controller known
+        private const int SDL_FORGET_TIMEOUT_MS = 30000; // Forget SDL controller after 30s of no detection
 
         // XInput slot caching - reduces API calls from 4 to 1 when controller stays connected
         private int _cachedXInputSlot = -1;
@@ -249,10 +252,11 @@ namespace ControlUp
             // Reset idle mode state
             _isInIdleMode = false;
             _lastControllerSeenTime = DateTime.MinValue;
-            _hidCheckCounter = 0;
             _cachedXInputSlot = -1;
             _cachedControllerName = null;
-            // Note: Keep _hasSeenPlayStationController - once we know user has a PS controller, remember it
+            _lastSdlCheckTime = DateTime.MinValue;
+            _lastSdlControllerSeenTime = DateTime.MinValue;
+            _hasSeenSdlController = false;
 
             // Release SDL resources
             // NOTE: Only call SDL_Quit() on full application shutdown
@@ -304,7 +308,6 @@ namespace ControlUp
             while (!token.IsCancellationRequested)
             {
                 loopIterations++;
-                _hidCheckCounter++;
                 var now = DateTime.Now;
 
                 // Determine current polling interval based on idle state
@@ -316,7 +319,7 @@ namespace ControlUp
                 {
                     lastLoopLog = now;
                     string modeStr = _isInIdleMode ? "IDLE" : "ACTIVE";
-                    _fileLogger?.Debug($"[HotkeyLoop] {loopIterations} iterations, mode={modeStr}, interval={currentInterval}ms, seenPS={_hasSeenPlayStationController}");
+                    _fileLogger?.Debug($"[HotkeyLoop] {loopIterations} iterations, mode={modeStr}, interval={currentInterval}ms, seenSDL={_hasSeenSdlController}");
                 }
 
                 try
@@ -364,6 +367,7 @@ namespace ControlUp
                     }
 
                     // Full scan if no cached slot or cached slot failed
+                    // Only use the FIRST controller found to avoid combining button states from multiple controllers
                     if (!hasXInputController)
                     {
                         for (uint slot = 0; slot < 4; slot++)
@@ -375,12 +379,9 @@ namespace ControlUp
                                 {
                                     hasXInputController = true;
                                     controllerDetectedThisIteration = true;
-                                    xinputButtons |= state.Gamepad.wButtons;
-                                    // Cache the first found slot for next iteration
-                                    if (_cachedXInputSlot < 0)
-                                    {
-                                        _cachedXInputSlot = (int)slot;
-                                    }
+                                    xinputButtons = state.Gamepad.wButtons;
+                                    _cachedXInputSlot = (int)slot;
+                                    break; // Use first controller only
                                 }
                             }
                             catch
@@ -415,30 +416,45 @@ namespace ControlUp
                     }
 
                     // SDL fallback for non-XInput controllers (8BitDo, PlayStation, etc.)
-                    // Uses lazy initialization to reduce CPU usage when no SDL controller is present
-                    // - If we've never seen an SDL controller, only check every ~50 iterations (~3.5s at 70ms)
-                    // - Once we've seen one, check every iteration
+                    // Uses time-based lazy checking to reduce CPU usage when no SDL controller is present
+                    // - If we've recently seen an SDL controller, check every iteration
+                    // - If not, only check every SDL_CHECK_INTERVAL_MS (~3.5s)
                     // - In idle mode, always check (we're already polling slowly)
+                    // - Forget SDL controller if not seen for SDL_FORGET_TIMEOUT_MS (30s)
                     bool shouldCheckSdl = !_popupShowing && !hotkeyPressed && !hasXInputController;
-                    if (shouldCheckSdl && !_hasSeenPlayStationController && !_isInIdleMode)
+
+                    if (shouldCheckSdl)
                     {
-                        // Lazy SDL: only check every 50 iterations if we've never seen an SDL controller
-                        shouldCheckSdl = (_hidCheckCounter % 50) == 0;
+                        // Reset "seen" flag if controller hasn't been detected for a while
+                        if (_hasSeenSdlController && (now - _lastSdlControllerSeenTime).TotalMilliseconds > SDL_FORGET_TIMEOUT_MS)
+                        {
+                            _hasSeenSdlController = false;
+                            _fileLogger?.Info("[HotkeyLoop] SDL controller not seen for 30s - reverting to lazy SDL polling");
+                        }
+
+                        // Use lazy checking if we haven't seen an SDL controller recently (unless in idle mode)
+                        if (!_hasSeenSdlController && !_isInIdleMode)
+                        {
+                            shouldCheckSdl = (now - _lastSdlCheckTime).TotalMilliseconds >= SDL_CHECK_INTERVAL_MS;
+                        }
                     }
 
                     if (shouldCheckSdl)
                     {
+                        _lastSdlCheckTime = now;
+
                         try
                         {
                             var sdlReading = SdlControllerWrapper.GetCurrentReading();
                             if (sdlReading.IsValid)
                             {
                                 controllerDetectedThisIteration = true;
+                                _lastSdlControllerSeenTime = now;
 
                                 // Remember that we've seen an SDL controller - enable full SDL polling
-                                if (!_hasSeenPlayStationController)
+                                if (!_hasSeenSdlController)
                                 {
-                                    _hasSeenPlayStationController = true;
+                                    _hasSeenSdlController = true;
                                     _fileLogger?.Info("[HotkeyLoop] SDL controller detected - enabling full SDL polling");
                                 }
 
@@ -765,54 +781,6 @@ namespace ControlUp
                     return (buttons & SdlControllerWrapper.SdlButtons.Back) != 0;
                 case ControllerHotkey.Start:
                     return (buttons & SdlControllerWrapper.SdlButtons.Start) != 0;
-                default:
-                    return false;
-            }
-        }
-
-        private bool IsHidHotkeyPressed(DirectInputWrapper.HidControllerReading reading, ControllerHotkey hotkey)
-        {
-            // PlayStation button mapping:
-            // Options = Start/Menu, Share = Back/View, PS = Guide
-            // R1 = RB, L1 = LB
-            switch (hotkey)
-            {
-                // Combo hotkeys
-                case ControllerHotkey.StartPlusRB:
-                    return reading.Options && reading.R1;
-                case ControllerHotkey.StartPlusLB:
-                    return reading.Options && reading.L1;
-                case ControllerHotkey.BackPlusStart:
-                    return reading.Share && reading.Options;
-                case ControllerHotkey.BackPlusRB:
-                    return reading.Share && reading.R1;
-                case ControllerHotkey.BackPlusLB:
-                    return reading.Share && reading.L1;
-                // Guide button combo hotkeys
-                case ControllerHotkey.GuidePlusStart:
-                    return reading.PS && reading.Options;
-                case ControllerHotkey.GuidePlusBack:
-                    return reading.PS && reading.Share;
-                case ControllerHotkey.GuidePlusRB:
-                    return reading.PS && reading.R1;
-                case ControllerHotkey.GuidePlusLB:
-                    return reading.PS && reading.L1;
-                // Shoulder button combos
-                case ControllerHotkey.StartPlusBack:
-                    return reading.Options && reading.Share;
-                case ControllerHotkey.LBPlusRB:
-                    return reading.L1 && reading.R1;
-                case ControllerHotkey.LBPlusRBPlusStart:
-                    return reading.L1 && reading.R1 && reading.Options;
-                case ControllerHotkey.LBPlusRBPlusBack:
-                    return reading.L1 && reading.R1 && reading.Share;
-                // Single button hotkeys
-                case ControllerHotkey.Guide:
-                    return reading.PS;
-                case ControllerHotkey.Back:
-                    return reading.Share;
-                case ControllerHotkey.Start:
-                    return reading.Options;
                 default:
                     return false;
             }
