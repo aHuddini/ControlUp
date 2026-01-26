@@ -8,6 +8,11 @@
   - Automatically falls back to SDL when no XInput controller is detected
 - **Style Presets**: Quick color scheme presets for notification appearance
   - 8 presets: Midnight Blue, Deep Purple, Forest Green, Crimson Red, Sunset Orange, Ocean Teal, Charcoal Gray, Rose Pink
+- **Troubleshooting Tab**: New settings tab with common issues and solutions
+  - SmartScreen blocking fullscreen launch
+  - XInput vs DirectInput mode recommendations
+  - PlayStation controller limitations (DirectInput only, slight hotkey delay)
+  - Hotkey troubleshooting checklist
 
 ### Fixes
 - **Fixed popup crash (again)**: Removed remaining SDL_Quit() calls that were still causing COM corruption
