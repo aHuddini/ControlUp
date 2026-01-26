@@ -49,6 +49,10 @@ namespace ControlUp
         // XInput slot caching - reduces API calls from 4 to 1 when controller stays connected
         private int _cachedXInputSlot = -1;
 
+        // Controller name caching - avoids repeated name lookups on every hotkey press
+        private string _cachedControllerName = null;
+        private bool _isXInputControllerCached = false; // Track which type of controller name is cached
+
         // Components
         private FileLogger _fileLogger;
 
@@ -247,6 +251,7 @@ namespace ControlUp
             _lastControllerSeenTime = DateTime.MinValue;
             _hidCheckCounter = 0;
             _cachedXInputSlot = -1;
+            _cachedControllerName = null;
             // Note: Keep _hasSeenPlayStationController - once we know user has a PS controller, remember it
 
             // Release SDL resources
@@ -348,11 +353,13 @@ namespace ControlUp
                             {
                                 // Controller disconnected from cached slot, will rescan all slots
                                 _cachedXInputSlot = -1;
+                                _cachedControllerName = null;
                             }
                         }
                         catch
                         {
                             _cachedXInputSlot = -1;
+                            _cachedControllerName = null;
                         }
                     }
 
@@ -385,17 +392,25 @@ namespace ControlUp
 
                     if (hasXInputController)
                     {
-                        hotkeyPressed = IsHotkeyPressed(xinputButtons, Settings.Settings.HotkeyCombo);
-                        if (hotkeyPressed)
+                        // Cache controller name on first detection (avoids repeated API calls)
+                        if (_cachedControllerName == null || !_isXInputControllerCached)
                         {
                             try
                             {
-                                controllerName = XInputWrapper.GetControllerName();
+                                _cachedControllerName = XInputWrapper.GetControllerName() ?? "Xbox Controller";
+                                _isXInputControllerCached = true;
                             }
                             catch
                             {
-                                controllerName = "Xbox Controller";
+                                _cachedControllerName = "Xbox Controller";
+                                _isXInputControllerCached = true;
                             }
+                        }
+
+                        hotkeyPressed = IsHotkeyPressed(xinputButtons, Settings.Settings.HotkeyCombo);
+                        if (hotkeyPressed)
+                        {
+                            controllerName = _cachedControllerName;
                         }
                     }
 
@@ -427,10 +442,17 @@ namespace ControlUp
                                     _fileLogger?.Info("[HotkeyLoop] SDL controller detected - enabling full SDL polling");
                                 }
 
+                                // Cache SDL controller name on first detection
+                                if (_cachedControllerName == null || _isXInputControllerCached)
+                                {
+                                    _cachedControllerName = SdlControllerWrapper.GetControllerName() ?? "Controller";
+                                    _isXInputControllerCached = false;
+                                }
+
                                 hotkeyPressed = IsSdlHotkeyPressed(sdlReading.Buttons, Settings.Settings.HotkeyCombo);
                                 if (hotkeyPressed)
                                 {
-                                    controllerName = SdlControllerWrapper.GetControllerName() ?? "Controller";
+                                    controllerName = _cachedControllerName;
                                 }
                             }
                         }
