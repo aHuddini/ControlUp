@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.3-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/version-1.0.5-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
 ## About
@@ -16,14 +16,17 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 *Currently Tested on an Xbox Series X USB/Wireless Controller*
 
-## What's New in 1.0.3
+## What's New in 1.0.4
 
-- **Long press hotkey support** - Hold instead of tap for single-button hotkeys like Guide
-- **More hotkey combos** - Guide+Start, LB+RB, and single button options
-- **Improved fullscreen switching** - Fixed reliability issues with mode transitions. No longer send a simple F11 shortcut :)
-- **PlayStation controller support** - Better DualSense/DualShock detection via SDL
+- **Fixed popup crashes** - Resolved crash when opening popup multiple times, particularly in Notification Previews
+- **Optional Idle mode for power saving** - Reduces polling when no controller connected (configurable in settings)
+- **Lazy HID initialization** - Less resource usage for users without PlayStation controllers
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
+
+## What's New in 1.0.5
+
+*Coming soon - Additional DirectInput HID improvements and performance optimizations.*
 
 ## Features
 
