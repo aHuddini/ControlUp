@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Runtime.InteropServices;
+using System.Threading;
 using SDL2;
 
 namespace ControlUp.Common
@@ -28,6 +29,9 @@ namespace ControlUp.Common
         private static SdlControllerReading _cachedReading = null;
         private static DateTime _lastReadingTime = DateTime.MinValue;
         private const int SDL_READING_CACHE_MS = 16; // ~60 FPS like Playnite
+
+        // Lock timeout to prevent deadlocks if SDL hangs
+        private const int LOCK_TIMEOUT_MS = 100;
 
         /// <summary>Controller button flags matching SDL_GameControllerButton.</summary>
         [Flags]
@@ -308,7 +312,14 @@ namespace ControlUp.Common
         {
             var result = new SdlControllerReading { IsValid = false };
 
-            lock (_lock)
+            // Use timeout to prevent deadlocks if SDL hangs
+            if (!Monitor.TryEnter(_lock, LOCK_TIMEOUT_MS))
+            {
+                Logger?.Debug("[SDL] GetCurrentReading: Lock timeout, skipping this iteration");
+                return result;
+            }
+
+            try
             {
                 _getCurrentReadingCount++;
 
@@ -398,6 +409,10 @@ namespace ControlUp.Common
                     // SDL call failed
                     CloseControllerInternal();
                 }
+            }
+            finally
+            {
+                Monitor.Exit(_lock);
             }
             return result;
         }

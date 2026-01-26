@@ -218,10 +218,41 @@ namespace ControlUp
 
         public bool IsEqual(ISettings other)
         {
-            if (other is ControlUpSettings otherSettings)
+            if (other is ControlUpSettings o)
             {
-                return FullscreenTriggerMode == otherSettings.FullscreenTriggerMode &&
-                       EnableLogging == otherSettings.EnableLogging;
+                return
+                    // General Settings
+                    FullscreenTriggerMode == o.FullscreenTriggerMode &&
+                    EnableLogging == o.EnableLogging &&
+                    SkipPopupOnConnection == o.SkipPopupOnConnection &&
+                    // Hotkey Settings
+                    EnableHotkey == o.EnableHotkey &&
+                    HotkeyCombo == o.HotkeyCombo &&
+                    SkipPopupOnHotkey == o.SkipPopupOnHotkey &&
+                    RequireLongPress == o.RequireLongPress &&
+                    LongPressDelayMs == o.LongPressDelayMs &&
+                    HotkeyPollingIntervalMs == o.HotkeyPollingIntervalMs &&
+                    // Idle Mode Settings
+                    EnableIdleMode == o.EnableIdleMode &&
+                    IdleTimeoutSeconds == o.IdleTimeoutSeconds &&
+                    IdlePollingIntervalMs == o.IdlePollingIntervalMs &&
+                    // Notification Settings
+                    NotificationPosition == o.NotificationPosition &&
+                    NotificationDurationSeconds == o.NotificationDurationSeconds &&
+                    NotificationWidth == o.NotificationWidth &&
+                    NotificationHeight == o.NotificationHeight &&
+                    NotificationEdgeMargin == o.NotificationEdgeMargin &&
+                    // Blur Settings
+                    EnableBlur == o.EnableBlur &&
+                    BlurOpacity == o.BlurOpacity &&
+                    BlurTintColor == o.BlurTintColor &&
+                    BlurMode == o.BlurMode &&
+                    // Visual Settings
+                    BackgroundColor == o.BackgroundColor &&
+                    BackgroundOpacity == o.BackgroundOpacity &&
+                    BorderColor == o.BorderColor &&
+                    BorderThickness == o.BorderThickness &&
+                    CornerRadius == o.CornerRadius;
             }
             return false;
         }
