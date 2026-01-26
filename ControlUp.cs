@@ -6,6 +6,7 @@ using ControlUp.Dialogs;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Threading;
@@ -16,9 +17,12 @@ namespace ControlUp
     {
         private static readonly ILogger Logger = LogManager.GetLogger();
 
-        // Connection monitoring (minimal timer for detecting new connections)
-        private DispatcherTimer _connectionTimer;
+        // Connection state tracking
         private bool _controllerWasConnected = false;
+
+        // Fallback polling timer (only used if SDK events don't fire for some controllers)
+        private DispatcherTimer _connectionTimer;
+        private const int FALLBACK_POLL_INTERVAL_MS = 2000;
 
         // Popup state
         private volatile bool _popupShowing = false;
@@ -30,6 +34,7 @@ namespace ControlUp
         private volatile bool _hotkeyTriggered = false;
         private DateTime _hotkeyPressStartTime = DateTime.MinValue;
         private bool _hotkeyLongPressTriggered = false;
+        private string _lastControllerName = null;
 
         // Active dialog reference for forwarding controller input
         private ControllerDetectedDialog _activeDialog = null;
@@ -50,9 +55,8 @@ namespace ControlUp
                 var extensionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                 _fileLogger = new FileLogger(extensionPath);
                 var version = Assembly.GetExecutingAssembly().GetName().Version;
-                _fileLogger.Info($"=== ControlUp v{version} Starting (SDK-based input) ===");
+                _fileLogger.Info($"=== ControlUp v{version} Starting (SDK 6.15 event-based) ===");
 
-                // Share logger with dialog
                 ControllerDetectedDialog.Logger = _fileLogger;
             }
             catch
@@ -86,43 +90,56 @@ namespace ControlUp
                 return;
             }
 
-            // Check initial controller state using XInput (quick connection check)
-            _controllerWasConnected = XInputWrapper.IsControllerConnected();
-            _fileLogger?.Info($"Initial controller state: Connected={_controllerWasConnected}");
+            // Check initial controller state using SDK API + HID fallback
+            var connectedControllers = PlayniteApi.GetConnectedControllers();
+            bool sdkConnected = connectedControllers != null && connectedControllers.Count > 0;
+            bool hidConnected = HidControllerDetector.IsAnyControllerConnected();
+            _controllerWasConnected = sdkConnected || hidConnected;
+
+            // Get controller name from SDK or HID
+            string controllerName = null;
+            if (sdkConnected && connectedControllers.Count > 0)
+            {
+                controllerName = connectedControllers[0].Name;
+            }
+            else if (hidConnected)
+            {
+                var hidControllers = HidControllerDetector.GetConnectedControllers();
+                if (hidControllers.Count > 0)
+                    controllerName = hidControllers[0].Name;
+            }
+
+            _fileLogger?.Info($"Initial controller state: SDK={sdkConnected}, HID={hidConnected}, Name={controllerName}");
 
             // Store current settings for change detection
             _lastTriggerMode = triggerMode;
             _lastEnableHotkey = Settings.Settings.EnableHotkey;
 
-            // Check if this is a startup-only mode
-            bool isStartupMode = triggerMode == FullscreenTriggerMode.StartupOnly;
-
-            if (isStartupMode)
+            // Handle startup trigger modes
+            if (triggerMode == FullscreenTriggerMode.StartupOnly)
             {
-                // Startup modes: only trigger at startup
                 if (_controllerWasConnected)
                 {
-                    _fileLogger?.Info("Startup mode: Controller detected, triggering fullscreen");
-                    DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection));
+                    _fileLogger?.Info("StartupOnly mode: Controller detected, triggering fullscreen");
+                    DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, controllerName));
                 }
                 return;
             }
 
-            // Runtime modes (NewConnectionOnly, AnyControllerAnytime):
             if (_controllerWasConnected && triggerMode == FullscreenTriggerMode.AnyControllerAnytime)
             {
                 _fileLogger?.Info("AnyControllerAnytime: Controller already connected at startup, triggering fullscreen");
-                DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection));
+                DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, controllerName));
             }
 
-            // Start connection monitoring for runtime modes
-            StartConnectionMonitoring();
+            // Start fallback connection monitoring (SDK events are primary)
+            StartFallbackConnectionMonitoring();
         }
 
         public override void OnApplicationStopped(OnApplicationStoppedEventArgs args)
         {
             _fileLogger?.Info("=== Application Stopped ===");
-            StopConnectionMonitoring();
+            StopFallbackConnectionMonitoring();
         }
 
         public override ISettings GetSettings(bool firstRunSettings) => Settings;
@@ -133,34 +150,110 @@ namespace ControlUp
         }
 
         /// <summary>
+        /// SDK callback - fired when a controller is connected.
+        /// This is the primary mechanism for connection detection.
+        /// </summary>
+        public override void OnControllerConnected(OnControllerConnectedArgs args)
+        {
+            var controllerName = args.Controller?.Name;
+            _fileLogger?.Info($"SDK OnControllerConnected: {controllerName}");
+
+            // Don't trigger if in fullscreen, popup showing, or disabled
+            if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing)
+            {
+                _fileLogger?.Info("Ignoring connection - fullscreen or popup showing");
+                return;
+            }
+
+            var triggerMode = Settings.Settings.FullscreenTriggerMode;
+            if (triggerMode == FullscreenTriggerMode.Disabled ||
+                triggerMode == FullscreenTriggerMode.StartupOnly)
+            {
+                _fileLogger?.Info($"Ignoring connection - trigger mode is {triggerMode}");
+                _controllerWasConnected = true;
+                return;
+            }
+
+            // NewConnectionOnly: only trigger if wasn't connected before
+            // AnyControllerAnytime: always trigger
+            bool shouldTrigger = triggerMode == FullscreenTriggerMode.AnyControllerAnytime ||
+                                 (triggerMode == FullscreenTriggerMode.NewConnectionOnly && !_controllerWasConnected);
+
+            _controllerWasConnected = true;
+
+            if (shouldTrigger)
+            {
+                // Delay popup slightly to allow Playnite's SDL input to fully initialize the controller
+                // This ensures button events will work in the dialog
+                var name = controllerName;
+                _fileLogger?.Info($"Triggering fullscreen switch for controller: {name} (with 300ms delay for SDL init)");
+                DelayedTrigger(300, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, name));
+            }
+        }
+
+        /// <summary>
+        /// SDK callback - fired when a controller is disconnected.
+        /// </summary>
+        public override void OnControllerDisconnected(OnControllerDisconnectedArgs args)
+        {
+            var controllerName = args.Controller?.Name;
+            _fileLogger?.Info($"SDK OnControllerDisconnected: {controllerName}");
+
+            // Check if any controllers are still connected
+            var connectedControllers = PlayniteApi.GetConnectedControllers();
+            bool anyConnected = (connectedControllers != null && connectedControllers.Count > 0) ||
+                               HidControllerDetector.IsAnyControllerConnected();
+
+            if (!anyConnected)
+            {
+                _fileLogger?.Info("All controllers disconnected - ready for reconnection");
+                _controllerWasConnected = false;
+            }
+        }
+
+        /// <summary>
         /// SDK callback - receives all controller button events from Playnite's SDL input system.
-        /// This replaces our custom polling thread.
         /// </summary>
         public override void OnDesktopControllerButtonStateChanged(OnControllerButtonStateChangedArgs args)
         {
+            _fileLogger?.Debug($"Button event: {args.Button} {args.State} (popup={_popupShowing}, dialog={_activeDialog != null})");
+
             // Forward to active dialog if showing
+            // Use BeginInvoke (async) to avoid deadlock with ShowDialog blocking the UI thread
             if (_activeDialog != null && _popupShowing)
             {
                 try
                 {
-                    Application.Current?.Dispatcher?.Invoke(() =>
+                    var button = args.Button;
+                    var state = args.State;
+                    var dialog = _activeDialog;
+                    _fileLogger?.Debug($"Forwarding {button} {state} to dialog");
+                    Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                     {
-                        _activeDialog?.HandleControllerInput(args.Button, args.State);
-                    });
+                        _fileLogger?.Debug($"BeginInvoke executing for {button} {state}");
+                        dialog?.HandleControllerInput(button, state);
+                    }));
                 }
-                catch { }
-                return; // Don't process hotkeys while dialog is active
+                catch (Exception ex)
+                {
+                    _fileLogger?.Error($"Error forwarding to dialog: {ex.Message}");
+                }
+                return;
             }
 
             // Track button states for hotkey combo detection
             if (args.State == ControllerInputState.Pressed)
             {
                 _pressedButtons.Add(args.Button);
+                // Capture controller name from SDK
+                if (args.Controller != null && !string.IsNullOrEmpty(args.Controller.Name))
+                {
+                    _lastControllerName = args.Controller.Name;
+                }
             }
             else
             {
                 _pressedButtons.Remove(args.Button);
-                // Reset tracking when any button is released
                 _hotkeyTriggered = false;
                 _hotkeyPressStartTime = DateTime.MinValue;
                 _hotkeyLongPressTriggered = false;
@@ -174,7 +267,7 @@ namespace ControlUp
                 return;
             }
 
-            // Don't trigger immediately after dialog was closed (prevents B button re-trigger)
+            // Prevent immediate re-trigger after dialog closes
             if ((DateTime.Now - _dialogClosedTime).TotalMilliseconds < DIALOG_CLOSE_COOLDOWN_MS)
             {
                 return;
@@ -188,7 +281,6 @@ namespace ControlUp
 
                 if (requireLongPress)
                 {
-                    // Long press mode - start tracking
                     if (_hotkeyPressStartTime == DateTime.MinValue)
                     {
                         _hotkeyPressStartTime = DateTime.Now;
@@ -200,24 +292,25 @@ namespace ControlUp
                         if (heldMs >= longPressDelayMs)
                         {
                             _hotkeyLongPressTriggered = true;
-                            _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} long-pressed for {heldMs:F0}ms");
+                            var controllerName = _lastControllerName;
+                            _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} long-pressed for {heldMs:F0}ms (controller: {controllerName})");
                             Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                             {
-                                TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey);
+                                TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, controllerName);
                             }));
                         }
                     }
                 }
                 else
                 {
-                    // Instant tap mode
                     if (!_hotkeyTriggered)
                     {
                         _hotkeyTriggered = true;
-                        _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} detected via SDK");
+                        var controllerName = _lastControllerName;
+                        _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} detected via SDK (controller: {controllerName})");
                         Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                         {
-                            TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey);
+                            TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, controllerName);
                         }));
                     }
                 }
@@ -228,7 +321,6 @@ namespace ControlUp
         {
             switch (Settings.Settings.HotkeyCombo)
             {
-                // Start combos
                 case ControllerHotkey.StartPlusRB:
                     return _pressedButtons.Contains(ControllerInput.Start) &&
                            _pressedButtons.Contains(ControllerInput.RightShoulder);
@@ -238,8 +330,6 @@ namespace ControlUp
                 case ControllerHotkey.StartPlusBack:
                     return _pressedButtons.Contains(ControllerInput.Start) &&
                            _pressedButtons.Contains(ControllerInput.Back);
-
-                // Back combos
                 case ControllerHotkey.BackPlusStart:
                     return _pressedButtons.Contains(ControllerInput.Back) &&
                            _pressedButtons.Contains(ControllerInput.Start);
@@ -249,8 +339,6 @@ namespace ControlUp
                 case ControllerHotkey.BackPlusLB:
                     return _pressedButtons.Contains(ControllerInput.Back) &&
                            _pressedButtons.Contains(ControllerInput.LeftShoulder);
-
-                // Guide combos
                 case ControllerHotkey.GuidePlusStart:
                     return _pressedButtons.Contains(ControllerInput.Guide) &&
                            _pressedButtons.Contains(ControllerInput.Start);
@@ -263,8 +351,6 @@ namespace ControlUp
                 case ControllerHotkey.GuidePlusLB:
                     return _pressedButtons.Contains(ControllerInput.Guide) &&
                            _pressedButtons.Contains(ControllerInput.LeftShoulder);
-
-                // Shoulder combos
                 case ControllerHotkey.LBPlusRB:
                     return _pressedButtons.Contains(ControllerInput.LeftShoulder) &&
                            _pressedButtons.Contains(ControllerInput.RightShoulder);
@@ -276,65 +362,90 @@ namespace ControlUp
                     return _pressedButtons.Contains(ControllerInput.LeftShoulder) &&
                            _pressedButtons.Contains(ControllerInput.RightShoulder) &&
                            _pressedButtons.Contains(ControllerInput.Back);
-
-                // Single button hotkeys
                 case ControllerHotkey.Guide:
                     return _pressedButtons.Contains(ControllerInput.Guide);
                 case ControllerHotkey.Back:
                     return _pressedButtons.Contains(ControllerInput.Back);
                 case ControllerHotkey.Start:
                     return _pressedButtons.Contains(ControllerInput.Start);
-
                 default:
                     return false;
             }
         }
 
-        private void StartConnectionMonitoring()
+        /// <summary>
+        /// Fallback polling for controllers that might not trigger SDK events.
+        /// SDK OnControllerConnected is preferred but this catches edge cases.
+        /// </summary>
+        private void StartFallbackConnectionMonitoring()
         {
             var triggerMode = Settings.Settings.FullscreenTriggerMode;
-            bool needsConnectionMonitoring = triggerMode == FullscreenTriggerMode.NewConnectionOnly ||
-                                              triggerMode == FullscreenTriggerMode.AnyControllerAnytime;
+            bool needsMonitoring = triggerMode == FullscreenTriggerMode.NewConnectionOnly ||
+                                   triggerMode == FullscreenTriggerMode.AnyControllerAnytime;
 
-            if (!needsConnectionMonitoring)
+            if (!needsMonitoring)
             {
                 _fileLogger?.Info("Connection monitoring not needed for current trigger mode");
                 return;
             }
 
-            _connectionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(1000) };
-            _connectionTimer.Tick += OnConnectionTimerTick;
+            _connectionTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(FALLBACK_POLL_INTERVAL_MS) };
+            _connectionTimer.Tick += OnFallbackConnectionTimerTick;
             _connectionTimer.Start();
-            _fileLogger?.Info("Started connection monitoring (1000ms interval)");
+            _fileLogger?.Info($"Started fallback connection monitoring ({FALLBACK_POLL_INTERVAL_MS}ms interval)");
         }
 
-        private void StopConnectionMonitoring()
+        private void StopFallbackConnectionMonitoring()
         {
             if (_connectionTimer != null)
             {
                 _connectionTimer.Stop();
-                _connectionTimer.Tick -= OnConnectionTimerTick;
+                _connectionTimer.Tick -= OnFallbackConnectionTimerTick;
                 _connectionTimer = null;
             }
         }
 
-        private void OnConnectionTimerTick(object sender, EventArgs e)
+        private void OnFallbackConnectionTimerTick(object sender, EventArgs e)
         {
             if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing)
                 return;
 
-            bool controllerNowConnected = XInputWrapper.IsControllerConnected();
+            // Check SDK and HID for controller state
+            var connectedControllers = PlayniteApi.GetConnectedControllers();
+            bool sdkConnected = connectedControllers != null && connectedControllers.Count > 0;
+            bool hidConnected = HidControllerDetector.IsAnyControllerConnected();
+            bool controllerNowConnected = sdkConnected || hidConnected;
 
-            // Detect NEW connection
+            // Detect NEW connection (that SDK events might have missed)
             if (controllerNowConnected && !_controllerWasConnected)
             {
-                _fileLogger?.Info("New controller connection detected");
+                string controllerName = null;
+                if (sdkConnected && connectedControllers.Count > 0)
+                {
+                    controllerName = connectedControllers[0].Name;
+                }
+                else if (hidConnected)
+                {
+                    var hidControllers = HidControllerDetector.GetConnectedControllers();
+                    if (hidControllers.Count > 0)
+                        controllerName = hidControllers[0].Name;
+                }
+
+                _fileLogger?.Info($"Fallback detected new controller (SDK={sdkConnected}, HID={hidConnected}, Name={controllerName})");
                 _controllerWasConnected = true;
-                TriggerFullscreenSwitch(FullscreenTriggerSource.Connection);
+
+                var triggerMode = Settings.Settings.FullscreenTriggerMode;
+                if (triggerMode == FullscreenTriggerMode.NewConnectionOnly ||
+                    triggerMode == FullscreenTriggerMode.AnyControllerAnytime)
+                {
+                    // Delay to allow SDL input initialization
+                    var name = controllerName;
+                    DelayedTrigger(300, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, name));
+                }
             }
             else if (!controllerNowConnected && _controllerWasConnected)
             {
-                _fileLogger?.Info("Controller disconnected - ready for reconnection");
+                _fileLogger?.Info("Fallback detected controller disconnected");
                 _controllerWasConnected = false;
             }
         }
@@ -357,7 +468,7 @@ namespace ControlUp
         private void TriggerFullscreenSwitch(FullscreenTriggerSource source, string controllerName = null)
         {
             _popupShowing = true;
-            _fileLogger?.Info($"TriggerFullscreenSwitch called with source: {source}");
+            _fileLogger?.Info($"TriggerFullscreenSwitch: source={source}, controller={controllerName}");
 
             try
             {
@@ -367,7 +478,7 @@ namespace ControlUp
 
                 if (skipPopup)
                 {
-                    _fileLogger?.Info($"Skipping popup (source: {source}), switching directly to fullscreen");
+                    _fileLogger?.Info($"Skipping popup, switching directly to fullscreen");
                     SwitchToFullscreen();
                     _popupShowing = false;
                 }
@@ -376,24 +487,19 @@ namespace ControlUp
                     _activeDialog = new ControllerDetectedDialog(Settings.Settings, source, controllerName);
                     var result = _activeDialog.ShowDialog();
 
-                    // Clear pressed buttons and set cooldown
                     _pressedButtons.Clear();
                     _dialogClosedTime = DateTime.Now;
                     _hotkeyTriggered = false;
                     _hotkeyPressStartTime = DateTime.MinValue;
                     _hotkeyLongPressTriggered = false;
 
-                    _fileLogger?.Info($"Dialog closed with result: {result}, UserSelectedYes: {_activeDialog?.UserSelectedYes}");
+                    _fileLogger?.Info($"Dialog closed: result={result}, UserSelectedYes={_activeDialog?.UserSelectedYes}");
                     _popupShowing = false;
 
                     if (result == true && _activeDialog.UserSelectedYes)
                     {
                         _fileLogger?.Info("User selected Yes - switching to fullscreen");
                         DelayedTrigger(50, () => SwitchToFullscreen());
-                    }
-                    else
-                    {
-                        _fileLogger?.Info("User selected Cancel or dialog timed out");
                     }
 
                     _activeDialog = null;
@@ -430,9 +536,6 @@ namespace ControlUp
             }
         }
 
-        /// <summary>
-        /// Called after settings are saved to restart monitoring if needed.
-        /// </summary>
         public void OnSettingsChanged()
         {
             var currentMode = PlayniteApi.ApplicationInfo.Mode;
@@ -456,23 +559,22 @@ namespace ControlUp
 
             _fileLogger?.Info($"Settings changed: TriggerMode {_lastTriggerMode} -> {newTriggerMode}, Hotkey {_lastEnableHotkey} -> {newEnableHotkey}");
 
-            // Stop existing monitoring
-            StopConnectionMonitoring();
+            StopFallbackConnectionMonitoring();
 
-            // Reset state
-            _controllerWasConnected = XInputWrapper.IsControllerConnected();
+            // Reset state using SDK API
+            var connectedControllers = PlayniteApi.GetConnectedControllers();
+            _controllerWasConnected = (connectedControllers != null && connectedControllers.Count > 0) ||
+                                      HidControllerDetector.IsAnyControllerConnected();
             _pressedButtons.Clear();
             _hotkeyTriggered = false;
 
-            // Update tracking
             _lastTriggerMode = newTriggerMode;
             _lastEnableHotkey = newEnableHotkey;
 
-            // Restart connection monitoring if needed
             if (newTriggerMode != FullscreenTriggerMode.Disabled &&
                 newTriggerMode != FullscreenTriggerMode.StartupOnly)
             {
-                StartConnectionMonitoring();
+                StartFallbackConnectionMonitoring();
             }
         }
     }

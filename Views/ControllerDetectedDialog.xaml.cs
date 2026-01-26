@@ -96,10 +96,13 @@ namespace ControlUp.Dialogs
         /// </summary>
         public void HandleControllerInput(ControllerInput button, ControllerInputState state)
         {
+            Logger?.Debug($"[Dialog] HandleControllerInput: {button} {state}");
+
             // Only respond to button presses
             if (state != ControllerInputState.Pressed)
                 return;
 
+            Logger?.Info($"[Dialog] Processing button press: {button}");
             ResetTimer();
 
             switch (button)
@@ -111,11 +114,13 @@ namespace ControlUp.Dialogs
                 case ControllerInput.LeftStickRight:
                 case ControllerInput.RightStickLeft:
                 case ControllerInput.RightStickRight:
+                    Logger?.Debug($"[Dialog] Switching selection");
                     SwitchSelection();
                     break;
 
                 // A button = confirm selection
                 case ControllerInput.A:
+                    Logger?.Debug($"[Dialog] A button - confirming selection {_selectedIndex}");
                     if (_selectedIndex == 0)
                         YesButton_Click(this, new RoutedEventArgs());
                     else
@@ -124,7 +129,12 @@ namespace ControlUp.Dialogs
 
                 // B button = cancel
                 case ControllerInput.B:
+                    Logger?.Debug($"[Dialog] B button - canceling");
                     CancelButton_Click(this, new RoutedEventArgs());
+                    break;
+
+                default:
+                    Logger?.Debug($"[Dialog] Unhandled button: {button}");
                     break;
             }
         }
