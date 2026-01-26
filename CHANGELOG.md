@@ -18,6 +18,12 @@
 - **Fixed popup crash (again)**: Removed remaining SDL_Quit() calls that were still causing COM corruption
 - **Controller Detection**: Improved support for third-party controllers via SDL
 
+### Stability & Maintenance
+- Fixed multi-controller button state bug that could cause false hotkey triggers
+- Added SDL lock timeout to prevent potential deadlocks
+- Fixed settings change detection (all properties now compared)
+- Removed dead code (~50 lines)
+
 ## Version 1.0.4 (January 25, 2026)
 
 ### Stability Fixes
