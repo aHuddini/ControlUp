@@ -61,6 +61,128 @@ namespace ControlUp
         // Computed property for long press slider enabled state
         public bool LongPressSliderEnabled => Settings?.EnableHotkey == true && Settings?.RequireLongPress == true;
 
+        // Style preset selection
+        private NotificationStylePreset _selectedStylePreset = NotificationStylePreset.Custom;
+        public NotificationStylePreset SelectedStylePreset
+        {
+            get => _selectedStylePreset;
+            set
+            {
+                if (_selectedStylePreset != value)
+                {
+                    _selectedStylePreset = value;
+                    OnPropertyChanged();
+                    if (value != NotificationStylePreset.Custom)
+                    {
+                        ApplyStylePreset(value);
+                    }
+                }
+            }
+        }
+
+        public IEnumerable<NotificationStylePreset> AvailableStylePresets => new[]
+        {
+            NotificationStylePreset.Custom,
+            NotificationStylePreset.MidnightBlue,
+            NotificationStylePreset.DeepPurple,
+            NotificationStylePreset.ForestGreen,
+            NotificationStylePreset.CrimsonRed,
+            NotificationStylePreset.SunsetOrange,
+            NotificationStylePreset.OceanTeal,
+            NotificationStylePreset.CharcoalGray,
+            NotificationStylePreset.RosePink
+        };
+
+        private void ApplyStylePreset(NotificationStylePreset preset)
+        {
+            // All presets use acrylic blur, keep corner radius at 0
+            Settings.EnableBlur = true;
+            Settings.BlurMode = 1; // Acrylic
+
+            switch (preset)
+            {
+                case NotificationStylePreset.MidnightBlue:
+                    // Default style - deep blue
+                    Settings.BlurTintColor = "00106C";
+                    Settings.BlurOpacity = 49;
+                    Settings.BackgroundColor = "071134";
+                    Settings.BackgroundOpacity = 138;
+                    Settings.BorderColor = "313553";
+                    Settings.BorderThickness = 1;
+                    break;
+
+                case NotificationStylePreset.DeepPurple:
+                    // Rich purple tones
+                    Settings.BlurTintColor = "4A148C";
+                    Settings.BlurOpacity = 60;
+                    Settings.BackgroundColor = "1A0033";
+                    Settings.BackgroundOpacity = 140;
+                    Settings.BorderColor = "7B1FA2";
+                    Settings.BorderThickness = 1;
+                    break;
+
+                case NotificationStylePreset.ForestGreen:
+                    // Natural green
+                    Settings.BlurTintColor = "1B5E20";
+                    Settings.BlurOpacity = 55;
+                    Settings.BackgroundColor = "0D2818";
+                    Settings.BackgroundOpacity = 145;
+                    Settings.BorderColor = "2E7D32";
+                    Settings.BorderThickness = 1;
+                    break;
+
+                case NotificationStylePreset.CrimsonRed:
+                    // Bold red
+                    Settings.BlurTintColor = "8B0000";
+                    Settings.BlurOpacity = 50;
+                    Settings.BackgroundColor = "1A0505";
+                    Settings.BackgroundOpacity = 150;
+                    Settings.BorderColor = "B71C1C";
+                    Settings.BorderThickness = 1;
+                    break;
+
+                case NotificationStylePreset.SunsetOrange:
+                    // Warm orange
+                    Settings.BlurTintColor = "E65100";
+                    Settings.BlurOpacity = 45;
+                    Settings.BackgroundColor = "1A0F00";
+                    Settings.BackgroundOpacity = 155;
+                    Settings.BorderColor = "FF6D00";
+                    Settings.BorderThickness = 1;
+                    break;
+
+                case NotificationStylePreset.OceanTeal:
+                    // Cool teal
+                    Settings.BlurTintColor = "006064";
+                    Settings.BlurOpacity = 55;
+                    Settings.BackgroundColor = "001A1A";
+                    Settings.BackgroundOpacity = 140;
+                    Settings.BorderColor = "00838F";
+                    Settings.BorderThickness = 1;
+                    break;
+
+                case NotificationStylePreset.CharcoalGray:
+                    // Neutral dark gray
+                    Settings.BlurTintColor = "212121";
+                    Settings.BlurOpacity = 65;
+                    Settings.BackgroundColor = "0A0A0A";
+                    Settings.BackgroundOpacity = 160;
+                    Settings.BorderColor = "424242";
+                    Settings.BorderThickness = 1;
+                    break;
+
+                case NotificationStylePreset.RosePink:
+                    // Soft pink
+                    Settings.BlurTintColor = "880E4F";
+                    Settings.BlurOpacity = 50;
+                    Settings.BackgroundColor = "1A0510";
+                    Settings.BackgroundOpacity = 145;
+                    Settings.BorderColor = "AD1457";
+                    Settings.BorderThickness = 1;
+                    break;
+            }
+        }
+
         public ControlUpSettingsViewModel(ControlUpPlugin plugin, IPlayniteAPI playniteApi)
         {
             Plugin = plugin;

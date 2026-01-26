@@ -21,6 +21,11 @@
                 <x:Type TypeName="local:ControllerHotkey" />
             </ObjectDataProvider.MethodParameters>
         </ObjectDataProvider>
+        <ObjectDataProvider x:Key="StylePresets" MethodName="GetValues" ObjectType="{x:Type sys:Enum}">
+            <ObjectDataProvider.MethodParameters>
+                <x:Type TypeName="local:NotificationStylePreset" />
+            </ObjectDataProvider.MethodParameters>
+        </ObjectDataProvider>
     </UserControl.Resources>
 
     <TabControl>
@@ -162,6 +167,25 @@
             <ScrollViewer VerticalScrollBarVisibility="Auto">
                 <StackPanel Margin="20">
                     <TextBlock Text="Notification Appearance" FontSize="18" FontWeight="Bold" Margin="0,0,0,20"/>
+
+                    <!-- Style Presets Section -->
+                    <TextBlock Text="Style Presets" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Quick Style:" Margin="0,0,0,5"/>
+                            <TextBlock Text="Select a preset to quickly apply a color scheme with acrylic blur." FontSize="11" Foreground="Gray" Margin="0,0,0,10"/>
+                            <ComboBox ItemsSource="{Binding AvailableStylePresets}"
+                                     SelectedItem="{Binding SelectedStylePreset}"
+                                     Margin="0,0,0,5">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Converter={StaticResource EnumDescriptionConverter}}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                            <TextBlock Text="Selecting a preset updates colors below. Use 'Custom' to keep manual changes." FontSize="10" Foreground="Gray" Margin="0,5,0,0"/>
+                        </StackPanel>
+                    </Border>
 
                     <!-- Position Section -->
                     <TextBlock Text="Position" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>

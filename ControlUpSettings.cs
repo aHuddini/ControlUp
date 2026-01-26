@@ -307,4 +307,35 @@ namespace ControlUp
         Connection,
         Hotkey
     }
+
+    /// <summary>Preset color styles for notification appearance.</summary>
+    public enum NotificationStylePreset
+    {
+        [Description("Custom")]
+        Custom,
+
+        [Description("Midnight Blue (Default)")]
+        MidnightBlue,
+
+        [Description("Deep Purple")]
+        DeepPurple,
+
+        [Description("Forest Green")]
+        ForestGreen,
+
+        [Description("Crimson Red")]
+        CrimsonRed,
+
+        [Description("Sunset Orange")]
+        SunsetOrange,
+
+        [Description("Ocean Teal")]
+        OceanTeal,
+
+        [Description("Charcoal Gray")]
+        CharcoalGray,
+
+        [Description("Rose Pink")]
+        RosePink
+    }
 }
