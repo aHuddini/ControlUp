@@ -223,7 +223,7 @@ namespace ControlUp
                 var sb = new StringBuilder();
 
                 // XInput Detection (Xbox controllers, wired or wireless via Xbox adapter)
-                sb.AppendLine("XInput (Xbox/XInput-compatible):");
+                sb.AppendLine("XInput (Xbox or other compatible gamepads):");
                 var xinputInfo = XInputWrapper.GetControllerInfo();
                 if (xinputInfo.Connected)
                 {
@@ -239,7 +239,7 @@ namespace ControlUp
 
                 // SDL Detection (cross-platform, includes PlayStation via HIDAPI)
                 // Note: SDL stays initialized for plugin lifetime to avoid COM corruption
-                sb.AppendLine("SDL (PlayStation/Generic):");
+                sb.AppendLine("SDL (PlayStation or other compatible gamepads):");
                 try
                 {
                     if (SdlControllerWrapper.Initialize())
@@ -258,6 +258,29 @@ namespace ControlUp
                     else
                     {
                         sb.AppendLine("  SDL not available");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    sb.AppendLine($"  Error: {ex.Message}");
+                }
+
+                // HID Detection (shows all detected game controllers and adapters)
+                sb.AppendLine();
+                sb.AppendLine("HID (Gamepads + Misc Devices):");
+                try
+                {
+                    var hidControllers = DirectInputWrapper.GetConnectedControllerNames();
+                    if (hidControllers.Count > 0)
+                    {
+                        foreach (var controller in hidControllers)
+                        {
+                            sb.AppendLine($"  {controller}");
+                        }
+                    }
+                    else
+                    {
+                        sb.AppendLine("  No devices detected");
                     }
                 }
                 catch (Exception ex)

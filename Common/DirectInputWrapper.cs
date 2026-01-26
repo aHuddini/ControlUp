@@ -801,15 +801,28 @@ namespace ControlUp.Common
                             string vid = vidPidParts[0].ToUpper();
                             string pid = vidPidParts[1].ToUpper();
 
+                            // Microsoft / Xbox
                             if (vid == "VID_045E")
                             {
+                                // Xbox Wireless Adapter / Receivers
+                                if (pid == "PID_02E6" || pid == "PID_02FE")
+                                    return "Xbox Wireless Adapter";
+                                if (pid == "PID_0719")
+                                    return "Xbox 360 Wireless Receiver";
+                                // Controllers
                                 if (pid == "PID_0B12" || pid == "PID_0B13" || pid == "PID_0B05" ||
                                     pid == "PID_02FD" || pid == "PID_02FF")
                                     return "Xbox Wireless Controller (USB)";
                                 return "Xbox Controller (USB)";
                             }
+
+                            // Sony / PlayStation
                             if (vid == "VID_054C")
                             {
+                                // DualShock 4 USB Adapter
+                                if (pid == "PID_0BA0")
+                                    return "DualShock 4 USB Adapter";
+                                // Controllers
                                 if (pid == "PID_0CE6")
                                     return "DualSense Controller (USB)";
                                 if (pid == "PID_0DF2")
@@ -817,6 +830,52 @@ namespace ControlUp.Common
                                 if (pid == "PID_05C4" || pid == "PID_09CC")
                                     return "DualShock 4 (USB)";
                                 return "PlayStation Controller (USB)";
+                            }
+
+                            // 8BitDo
+                            if (vid == "VID_2DC8")
+                            {
+                                // Known receiver PIDs
+                                if (pid == "PID_3105")
+                                    return "8BitDo Retro Receiver";
+                                if (pid == "PID_3010" || pid == "PID_3012")
+                                    return "8BitDo USB Wireless Adapter";
+                                if (pid == "PID_6100" || pid == "PID_6101")
+                                    return "8BitDo 2.4G Receiver";
+                                return "8BitDo Controller";
+                            }
+
+                            // PowerA
+                            if (vid == "VID_20D6")
+                            {
+                                return "PowerA Controller";
+                            }
+
+                            // PDP
+                            if (vid == "VID_0E6F")
+                            {
+                                return "PDP Controller";
+                            }
+
+                            // Razer
+                            if (vid == "VID_1532")
+                            {
+                                return "Razer Controller";
+                            }
+
+                            // GameSir
+                            if (vid == "VID_12BD")
+                            {
+                                return "GameSir Controller";
+                            }
+
+                            // Mayflash
+                            if (vid == "VID_2563")
+                            {
+                                // Known adapter PIDs
+                                if (pid == "PID_0523" || pid == "PID_0575")
+                                    return "Mayflash Adapter";
+                                return "Mayflash Controller";
                             }
 
                             return $"HID Device (VID:{vid}, PID:{pid})";
