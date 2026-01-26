@@ -46,6 +46,9 @@ namespace ControlUp
         private volatile bool _hasSeenPlayStationController = false;
         private int _hidCheckCounter = 0;
 
+        // XInput slot caching - reduces API calls from 4 to 1 when controller stays connected
+        private int _cachedXInputSlot = -1;
+
         // Components
         private FileLogger _fileLogger;
 
@@ -243,6 +246,7 @@ namespace ControlUp
             _isInIdleMode = false;
             _lastControllerSeenTime = DateTime.MinValue;
             _hidCheckCounter = 0;
+            _cachedXInputSlot = -1;
             // Note: Keep _hasSeenPlayStationController - once we know user has a PS controller, remember it
 
             // Release SDL resources
@@ -324,24 +328,58 @@ namespace ControlUp
 
                     // Check XInput controllers (use GetStateEx for Guide button support)
                     // XInput is thread-safe, cheap, and works for Xbox controllers + many third-party controllers
+                    // Uses slot caching to reduce API calls from 4 to 1 when controller stays in same slot
                     ushort xinputButtons = 0;
                     bool hasXInputController = false;
 
-                    for (uint slot = 0; slot < 4; slot++)
+                    // Try cached slot first (most common case - controller stays connected)
+                    if (_cachedXInputSlot >= 0)
                     {
                         try
                         {
                             XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
-                            if (XInputWrapper.GetStateEx(slot, ref state) == XInputWrapper.ERROR_SUCCESS)
+                            if (XInputWrapper.GetStateEx((uint)_cachedXInputSlot, ref state) == XInputWrapper.ERROR_SUCCESS)
                             {
                                 hasXInputController = true;
                                 controllerDetectedThisIteration = true;
-                                xinputButtons |= state.Gamepad.wButtons;
+                                xinputButtons = state.Gamepad.wButtons;
+                            }
+                            else
+                            {
+                                // Controller disconnected from cached slot, will rescan all slots
+                                _cachedXInputSlot = -1;
                             }
                         }
                         catch
                         {
-                            // Individual slot read failed, continue to next
+                            _cachedXInputSlot = -1;
+                        }
+                    }
+
+                    // Full scan if no cached slot or cached slot failed
+                    if (!hasXInputController)
+                    {
+                        for (uint slot = 0; slot < 4; slot++)
+                        {
+                            try
+                            {
+                                XInputWrapper.XINPUT_STATE state = new XInputWrapper.XINPUT_STATE();
+                                if (XInputWrapper.GetStateEx(slot, ref state) == XInputWrapper.ERROR_SUCCESS)
+                                {
+                                    hasXInputController = true;
+                                    controllerDetectedThisIteration = true;
+                                    xinputButtons |= state.Gamepad.wButtons;
+                                    // Cache the first found slot for next iteration
+                                    if (_cachedXInputSlot < 0)
+                                    {
+                                        _cachedXInputSlot = (int)slot;
+                                    }
+                                }
+                            }
+                            catch
+                            {
+                                // Individual slot read failed, continue to next
+                            }
                         }
                     }
 
