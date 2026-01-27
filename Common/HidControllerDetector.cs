@@ -122,6 +122,14 @@ namespace ControlUp.Common
             { 0x20D6, "PowerA/BDA" },
         };
 
+        public enum ConnectionType
+        {
+            Unknown,
+            USB,
+            Bluetooth,
+            Wireless  // For proprietary wireless (e.g., Xbox wireless adapter)
+        }
+
         public class ControllerInfo
         {
             public string Name { get; set; }
@@ -129,6 +137,13 @@ namespace ControlUp.Common
             public ushort VendorId { get; set; }
             public ushort ProductId { get; set; }
             public string Type { get; set; }
+            public ConnectionType Connection { get; set; }
+            public string DevicePath { get; set; }
+
+            /// <summary>Returns a display string like "8BitDo Pro 2 (Bluetooth)" or "Xbox Controller (USB)"</summary>
+            public string DisplayName => Connection != ConnectionType.Unknown
+                ? $"{Name} ({Connection})"
+                : Name;
         }
 
         /// <summary>Returns all connected HID game controllers.</summary>
@@ -257,7 +272,9 @@ namespace ControlUp.Common
                         Manufacturer = manufacturer,
                         VendorId = attributes.VendorID,
                         ProductId = attributes.ProductID,
-                        Type = GetControllerType(attributes.VendorID, caps.Usage)
+                        Type = GetControllerType(attributes.VendorID, caps.Usage),
+                        Connection = GetConnectionType(devicePath),
+                        DevicePath = devicePath
                     };
                 }
                 finally
@@ -288,6 +305,43 @@ namespace ControlUp.Common
                 case 0x28DE: return "Steam Controller";
                 default: return baseType;
             }
+        }
+
+        private static ConnectionType GetConnectionType(string devicePath)
+        {
+            if (string.IsNullOrEmpty(devicePath))
+                return ConnectionType.Unknown;
+
+            string pathUpper = devicePath.ToUpperInvariant();
+
+            // Bluetooth indicators in device path
+            if (pathUpper.Contains("BTHENUM") ||
+                pathUpper.Contains("BLUETOOTHLE") ||
+                pathUpper.Contains("BTH") ||
+                pathUpper.Contains("{00001124-0000-1000-8000-00805F9B34FB}"))  // Bluetooth HID GUID
+            {
+                return ConnectionType.Bluetooth;
+            }
+
+            // Xbox Wireless Adapter (proprietary 2.4GHz, not Bluetooth)
+            // VID 045E (Microsoft) with specific wireless adapter PIDs
+            if (pathUpper.Contains("VID_045E") &&
+                (pathUpper.Contains("PID_02E0") ||  // Xbox Wireless Adapter
+                 pathUpper.Contains("PID_02FE") ||  // Xbox Wireless Adapter v2
+                 pathUpper.Contains("PID_0719")))   // Xbox 360 Wireless Receiver
+            {
+                return ConnectionType.Wireless;
+            }
+
+            // USB indicators
+            if (pathUpper.Contains("USB#") ||
+                pathUpper.Contains("\\USB\\") ||
+                pathUpper.Contains("VID_"))  // VID_ without Bluetooth markers = USB
+            {
+                return ConnectionType.USB;
+            }
+
+            return ConnectionType.Unknown;
         }
 
         /// <summary>Returns true if any game controller is connected.</summary>
