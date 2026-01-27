@@ -96,6 +96,7 @@ namespace ControlUp
         private int _backgroundOpacity = 138;
         private string _borderColor = "313553";
         private int _borderThickness = 1;
+        private int _borderOpacity = 70;
         private int _cornerRadius = 0;
 
         // Effects
@@ -185,6 +186,13 @@ namespace ControlUp
         {
             get => _borderThickness;
             set => SetValue(ref _borderThickness, Math.Max(0, Math.Min(5, value)));
+        }
+
+        /// <summary>Opacity of border (0-255). Default: 255.</summary>
+        public int BorderOpacity
+        {
+            get => _borderOpacity;
+            set => SetValue(ref _borderOpacity, Math.Max(0, Math.Min(255, value)));
         }
 
         public int CornerRadius
@@ -392,6 +400,7 @@ namespace ControlUp
                     BackgroundOpacity == o.BackgroundOpacity &&
                     BorderColor == o.BorderColor &&
                     BorderThickness == o.BorderThickness &&
+                    BorderOpacity == o.BorderOpacity &&
                     CornerRadius == o.CornerRadius &&
                     // Effects
                     BlurWindowPadding == o.BlurWindowPadding &&

@@ -219,7 +219,7 @@ namespace ControlUp
                     Settings.BlurOpacity = 49;
                     Settings.BackgroundColor = "071134";
                     Settings.BackgroundOpacity = 138;
-                    Settings.BorderColor = "313553";
+                    Settings.BorderColor = "354171";
                     Settings.BorderThickness = 1;
                     break;
 
@@ -229,7 +229,7 @@ namespace ControlUp
                     Settings.BlurOpacity = 60;
                     Settings.BackgroundColor = "1A0033";
                     Settings.BackgroundOpacity = 140;
-                    Settings.BorderColor = "7B1FA2";
+                    Settings.BorderColor = "631597";
                     Settings.BorderThickness = 1;
                     break;
 
@@ -239,7 +239,7 @@ namespace ControlUp
                     Settings.BlurOpacity = 55;
                     Settings.BackgroundColor = "0D2818";
                     Settings.BackgroundOpacity = 145;
-                    Settings.BorderColor = "2E7D32";
+                    Settings.BorderColor = "236529";
                     Settings.BorderThickness = 1;
                     break;
 
@@ -249,7 +249,7 @@ namespace ControlUp
                     Settings.BlurOpacity = 50;
                     Settings.BackgroundColor = "1A0505";
                     Settings.BackgroundOpacity = 150;
-                    Settings.BorderColor = "B71C1C";
+                    Settings.BorderColor = "8C1515";
                     Settings.BorderThickness = 1;
                     break;
 
@@ -259,7 +259,7 @@ namespace ControlUp
                     Settings.BlurOpacity = 45;
                     Settings.BackgroundColor = "1A0F00";
                     Settings.BackgroundOpacity = 155;
-                    Settings.BorderColor = "FF6D00";
+                    Settings.BorderColor = "AA4800";
                     Settings.BorderThickness = 1;
                     break;
 
@@ -269,7 +269,7 @@ namespace ControlUp
                     Settings.BlurOpacity = 55;
                     Settings.BackgroundColor = "001A1A";
                     Settings.BackgroundOpacity = 140;
-                    Settings.BorderColor = "00838F";
+                    Settings.BorderColor = "00757B";
                     Settings.BorderThickness = 1;
                     break;
 
@@ -279,7 +279,7 @@ namespace ControlUp
                     Settings.BlurOpacity = 65;
                     Settings.BackgroundColor = "0A0A0A";
                     Settings.BackgroundOpacity = 160;
-                    Settings.BorderColor = "424242";
+                    Settings.BorderColor = "404040";
                     Settings.BorderThickness = 1;
                     break;
 
@@ -289,7 +289,7 @@ namespace ControlUp
                     Settings.BlurOpacity = 50;
                     Settings.BackgroundColor = "1A0510";
                     Settings.BackgroundOpacity = 145;
-                    Settings.BorderColor = "AD1457";
+                    Settings.BorderColor = "810E4A";
                     Settings.BorderThickness = 1;
                     break;
             }

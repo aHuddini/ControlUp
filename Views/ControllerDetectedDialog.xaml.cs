@@ -175,7 +175,8 @@ namespace ControlUp.Dialogs
 
             MainBorder.Background = new SolidColorBrush(Color.FromArgb(
                 (byte)_settings.BackgroundOpacity, bgColor.R, bgColor.G, bgColor.B));
-            MainBorder.BorderBrush = new SolidColorBrush(borderColor);
+            MainBorder.BorderBrush = new SolidColorBrush(Color.FromArgb(
+                (byte)_settings.BorderOpacity, borderColor.R, borderColor.G, borderColor.B));
             MainBorder.BorderThickness = new Thickness(_settings.BorderThickness);
             MainBorder.CornerRadius = new CornerRadius(_settings.CornerRadius);
 
