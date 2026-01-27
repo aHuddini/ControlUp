@@ -290,7 +290,7 @@
                             </StackPanel>
 
                             <TextBlock Text="Corner Radius:" Margin="0,10,0,5"/>
-                            <TextBlock Text="(Set to 0 for best blur effect)" FontSize="10" Foreground="Gray" Margin="0,0,0,5"/>
+                            <TextBlock Text="Due to a bug in Windows' blur system, corner radius doesn't work with blur. If you want corner radius without dark corner artifacts, blur must be disabled." FontSize="10" Foreground="Gray" TextWrapping="Wrap" Margin="0,0,0,5"/>
                             <StackPanel Orientation="Horizontal">
                                 <Slider Value="{Binding Settings.CornerRadius}"
                                         Minimum="0" Maximum="32" Width="200"
