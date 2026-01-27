@@ -35,6 +35,7 @@ namespace ControlUp
         private DateTime _hotkeyPressStartTime = DateTime.MinValue;
         private bool _hotkeyLongPressTriggered = false;
         private string _lastControllerName = null;
+        private DispatcherTimer _longPressTimer = null;
 
         // Active dialog reference for forwarding controller input
         private ControllerDetectedDialog _activeDialog = null;
@@ -257,6 +258,7 @@ namespace ControlUp
                 _hotkeyTriggered = false;
                 _hotkeyPressStartTime = DateTime.MinValue;
                 _hotkeyLongPressTriggered = false;
+                StopLongPressTimer();
             }
 
             // Don't check hotkeys if disabled or already in fullscreen
@@ -277,32 +279,25 @@ namespace ControlUp
             if (IsHotkeyComboPressed())
             {
                 bool requireLongPress = Settings.Settings.RequireLongPress;
-                int longPressDelayMs = Settings.Settings.LongPressDelayMs;
 
                 if (requireLongPress)
                 {
-                    if (_hotkeyPressStartTime == DateTime.MinValue)
+                    // Start long press timer if not already running
+                    if (_longPressTimer == null && !_hotkeyLongPressTriggered)
                     {
+                        int longPressDelayMs = Settings.Settings.LongPressDelayMs;
                         _hotkeyPressStartTime = DateTime.Now;
                         _fileLogger?.Debug($"Hotkey combo held - starting long press timer ({longPressDelayMs}ms required)");
-                    }
-                    else if (!_hotkeyLongPressTriggered)
-                    {
-                        double heldMs = (DateTime.Now - _hotkeyPressStartTime).TotalMilliseconds;
-                        if (heldMs >= longPressDelayMs)
-                        {
-                            _hotkeyLongPressTriggered = true;
-                            var controllerName = _lastControllerName;
-                            _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} long-pressed for {heldMs:F0}ms (controller: {controllerName})");
-                            Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
-                            {
-                                TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, controllerName);
-                            }));
-                        }
+
+                        // Create timer to check long press completion
+                        _longPressTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(50) };
+                        _longPressTimer.Tick += OnLongPressTimerTick;
+                        _longPressTimer.Start();
                     }
                 }
                 else
                 {
+                    // Instant tap mode
                     if (!_hotkeyTriggered)
                     {
                         _hotkeyTriggered = true;
@@ -314,6 +309,45 @@ namespace ControlUp
                         }));
                     }
                 }
+            }
+            else
+            {
+                // Combo no longer pressed - stop long press timer
+                StopLongPressTimer();
+            }
+        }
+
+        private void OnLongPressTimerTick(object sender, EventArgs e)
+        {
+            // Check if combo is still pressed
+            if (!IsHotkeyComboPressed())
+            {
+                _fileLogger?.Debug("Long press cancelled - combo released");
+                StopLongPressTimer();
+                return;
+            }
+
+            // Check if long press duration reached
+            int longPressDelayMs = Settings.Settings.LongPressDelayMs;
+            double heldMs = (DateTime.Now - _hotkeyPressStartTime).TotalMilliseconds;
+
+            if (heldMs >= longPressDelayMs && !_hotkeyLongPressTriggered)
+            {
+                _hotkeyLongPressTriggered = true;
+                var controllerName = _lastControllerName;
+                _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} long-pressed for {heldMs:F0}ms (controller: {controllerName})");
+                StopLongPressTimer();
+                TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, controllerName);
+            }
+        }
+
+        private void StopLongPressTimer()
+        {
+            if (_longPressTimer != null)
+            {
+                _longPressTimer.Stop();
+                _longPressTimer.Tick -= OnLongPressTimerTick;
+                _longPressTimer = null;
             }
         }
 
