@@ -50,7 +50,19 @@
             CornerRadius="0"
             Padding="0">
 
-        <Grid Margin="24,20,24,20">
+        <Grid>
+            <!-- Vignette overlay (optional, controlled by code) -->
+            <Border x:Name="VignetteOverlay" IsHitTestVisible="False" Visibility="Collapsed">
+                <Border.Background>
+                    <RadialGradientBrush GradientOrigin="0.5,0.5" Center="0.5,0.5" RadiusX="0.7" RadiusY="0.7">
+                        <GradientStop Color="Transparent" Offset="0.3"/>
+                        <GradientStop Color="#40000000" Offset="1"/>
+                    </RadialGradientBrush>
+                </Border.Background>
+            </Border>
+
+            <!-- Content -->
+            <Grid Margin="24,20,24,20">
             <Grid.RowDefinitions>
                 <RowDefinition Height="Auto"/>
                 <RowDefinition Height="Auto"/>
@@ -169,6 +181,7 @@
                            HorizontalAlignment="Center"
                            Margin="0,4,0,0"/>
             </StackPanel>
+            </Grid>
         </Grid>
     </Border>
 </Window>

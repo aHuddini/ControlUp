@@ -68,6 +68,9 @@ namespace ControlUp
                 SourceName = "ControlUp",
                 SettingsRoot = $"{nameof(Settings)}.{nameof(Settings.Settings)}"
             });
+
+            // Sync toast notification settings
+            NotifierHelper.SyncSettings(Settings.Settings);
         }
 
         public override Guid Id => Guid.Parse("8d646e1b-c919-49d7-be40-5ef9960064bc");
@@ -488,6 +491,16 @@ namespace ControlUp
                 if (skipPopup)
                 {
                     _fileLogger?.Info($"Skipping popup, switching directly to fullscreen");
+
+                    // Show toast notification for auto-switch feedback
+                    NotifierHelper.SyncSettings(Settings.Settings);
+                    string toastMessage = source == FullscreenTriggerSource.Hotkey
+                        ? "Hotkey triggered - switching to Fullscreen Mode"
+                        : !string.IsNullOrEmpty(controllerName)
+                            ? $"{controllerName} connected - switching to Fullscreen Mode"
+                            : "Controller connected - switching to Fullscreen Mode";
+                    NotifierHelper.ShowInfo(toastMessage, "ControlUp");
+
                     SwitchToFullscreen();
                     _popupShowing = false;
                 }

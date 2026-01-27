@@ -157,11 +157,17 @@ namespace ControlUp.Dialogs
             }
         }
 
+        // Blur window padding (stored for positioning calculations)
+        private double _blurPadding = 0;
+
         private void ApplySettings()
         {
-            // Apply size
-            Width = _settings.NotificationWidth;
-            Height = _settings.NotificationHeight;
+            // Get blur padding from settings
+            _blurPadding = _settings.BlurWindowPadding;
+
+            // Apply size - expand window to include blur padding
+            Width = _settings.NotificationWidth + (_blurPadding * 2);
+            Height = _settings.NotificationHeight + (_blurPadding * 2);
 
             // Apply visual settings to the main border
             var bgColor = HexToColor(_settings.BackgroundColor);
@@ -172,6 +178,43 @@ namespace ControlUp.Dialogs
             MainBorder.BorderBrush = new SolidColorBrush(borderColor);
             MainBorder.BorderThickness = new Thickness(_settings.BorderThickness);
             MainBorder.CornerRadius = new CornerRadius(_settings.CornerRadius);
+
+            // Apply blur padding margin if set
+            if (_blurPadding > 0)
+            {
+                MainBorder.Margin = new Thickness(_blurPadding);
+            }
+            else
+            {
+                MainBorder.Margin = new Thickness(0);
+            }
+
+            // Apply vignette effect
+            if (_settings.EnableVignette)
+            {
+                var vignetteColor = HexToColor(_settings.VignetteColor);
+                var vignetteColorWithAlpha = Color.FromArgb((byte)_settings.VignetteOpacity, vignetteColor.R, vignetteColor.G, vignetteColor.B);
+
+                // Calculate radius based on vignette size (smaller size = tighter vignette)
+                double radius = _settings.VignetteSize / 100.0 * 0.7;
+
+                var radialBrush = new RadialGradientBrush
+                {
+                    GradientOrigin = new Point(0.5, 0.5),
+                    Center = new Point(0.5, 0.5),
+                    RadiusX = radius,
+                    RadiusY = radius
+                };
+                radialBrush.GradientStops.Add(new GradientStop(Colors.Transparent, 0.3));
+                radialBrush.GradientStops.Add(new GradientStop(vignetteColorWithAlpha, 1));
+
+                VignetteOverlay.Background = radialBrush;
+                VignetteOverlay.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                VignetteOverlay.Visibility = Visibility.Collapsed;
+            }
 
             // Update countdown text
             CountdownText.Text = $"Auto-closing in {_remainingSeconds}s...";
@@ -198,35 +241,38 @@ namespace ControlUp.Dialogs
             var screenHeight = SystemParameters.PrimaryScreenHeight;
             var margin = _settings.NotificationEdgeMargin;
 
+            // Offset position by blur padding so the visible content aligns with edge margin
+            var blurOffset = _blurPadding;
+
             switch (_settings.NotificationPosition)
             {
                 case NotificationPosition.TopLeft:
-                    Left = margin;
-                    Top = margin;
+                    Left = margin - blurOffset;
+                    Top = margin - blurOffset;
                     break;
                 case NotificationPosition.TopCenter:
                     Left = (screenWidth - Width) / 2;
-                    Top = margin;
+                    Top = margin - blurOffset;
                     break;
                 case NotificationPosition.TopRight:
-                    Left = screenWidth - Width - margin;
-                    Top = margin;
+                    Left = screenWidth - Width - margin + blurOffset;
+                    Top = margin - blurOffset;
                     break;
                 case NotificationPosition.Center:
                     Left = (screenWidth - Width) / 2;
                     Top = (screenHeight - Height) / 2;
                     break;
                 case NotificationPosition.BottomLeft:
-                    Left = margin;
-                    Top = screenHeight - Height - margin;
+                    Left = margin - blurOffset;
+                    Top = screenHeight - Height - margin + blurOffset;
                     break;
                 case NotificationPosition.BottomCenter:
                     Left = (screenWidth - Width) / 2;
-                    Top = screenHeight - Height - margin;
+                    Top = screenHeight - Height - margin + blurOffset;
                     break;
                 case NotificationPosition.BottomRight:
-                    Left = screenWidth - Width - margin;
-                    Top = screenHeight - Height - margin;
+                    Left = screenWidth - Width - margin + blurOffset;
+                    Top = screenHeight - Height - margin + blurOffset;
                     break;
             }
         }

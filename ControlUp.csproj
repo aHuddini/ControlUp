@@ -24,6 +24,7 @@
         <PackageReference Include="Microsoft.CSharp" Version="4.7.0" PrivateAssets="none" />
         <PackageReference Include="MaterialDesignThemes" Version="4.7.0" />
         <PackageReference Include="MaterialDesignColors" Version="2.1.0" />
+        <PackageReference Include="System.ValueTuple" Version="4.5.0" />
     </ItemGroup>
     <ItemGroup>
         <Reference Include="System.Windows.Forms" />

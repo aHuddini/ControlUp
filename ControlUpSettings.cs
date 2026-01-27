@@ -98,6 +98,13 @@ namespace ControlUp
         private int _borderThickness = 1;
         private int _cornerRadius = 0;
 
+        // Effects
+        private int _blurWindowPadding = 0;
+        private bool _enableVignette = false;
+        private string _vignetteColor = "000000";
+        private int _vignetteOpacity = 60;
+        private int _vignetteSize = 100;
+
         public NotificationPosition NotificationPosition
         {
             get => _notificationPosition;
@@ -186,6 +193,169 @@ namespace ControlUp
             set => SetValue(ref _cornerRadius, Math.Max(0, Math.Min(32, value)));
         }
 
+        // Effects
+        /// <summary>Extra padding around window for blur effect (0-50). Default: 0.</summary>
+        public int BlurWindowPadding
+        {
+            get => _blurWindowPadding;
+            set => SetValue(ref _blurWindowPadding, Math.Max(0, Math.Min(50, value)));
+        }
+
+        public bool EnableVignette
+        {
+            get => _enableVignette;
+            set => SetValue(ref _enableVignette, value);
+        }
+
+        /// <summary>RGB hex without # prefix for vignette color.</summary>
+        public string VignetteColor
+        {
+            get => _vignetteColor;
+            set => SetValue(ref _vignetteColor, value ?? "000000");
+        }
+
+        /// <summary>Opacity of vignette effect (0-255). Default: 60.</summary>
+        public int VignetteOpacity
+        {
+            get => _vignetteOpacity;
+            set => SetValue(ref _vignetteOpacity, Math.Max(0, Math.Min(255, value)));
+        }
+
+        /// <summary>Size of vignette effect in pixels (50-200). Default: 100.</summary>
+        public int VignetteSize
+        {
+            get => _vignetteSize;
+            set => SetValue(ref _vignetteSize, Math.Max(50, Math.Min(200, value)));
+        }
+
+        // Toast Notification Settings
+        private bool _enableToastNotifications = true;
+        private int _toastPosition = 4; // BottomRight
+        private int _toastEdgeMargin = 30;
+        private bool _enableToastBlur = true;
+        private int _toastBlurOpacity = 180;
+        private string _toastBlurTintColor = "1E1E1E";
+        private double _toastWidth = 350;
+        private double _toastMinHeight = 70;
+        private double _toastMaxHeight = 140;
+        private int _toastDurationMs = 3000;
+        private string _toastBorderColor = "2A2A2A";
+        private double _toastBorderThickness = 0;
+        private double _toastCornerRadius = 0;
+
+        public bool EnableToastNotifications
+        {
+            get => _enableToastNotifications;
+            set => SetValue(ref _enableToastNotifications, value);
+        }
+
+        /// <summary>0=TopRight, 1=TopLeft, 2=BottomRight, 3=BottomLeft, 4=TopCenter, 5=BottomCenter</summary>
+        public int ToastPosition
+        {
+            get => _toastPosition;
+            set => SetValue(ref _toastPosition, Math.Max(0, Math.Min(5, value)));
+        }
+
+        public int ToastEdgeMargin
+        {
+            get => _toastEdgeMargin;
+            set => SetValue(ref _toastEdgeMargin, Math.Max(0, Math.Min(100, value)));
+        }
+
+        public bool EnableToastBlur
+        {
+            get => _enableToastBlur;
+            set => SetValue(ref _enableToastBlur, value);
+        }
+
+        public int ToastBlurOpacity
+        {
+            get => _toastBlurOpacity;
+            set => SetValue(ref _toastBlurOpacity, Math.Max(0, Math.Min(255, value)));
+        }
+
+        public string ToastBlurTintColor
+        {
+            get => _toastBlurTintColor;
+            set => SetValue(ref _toastBlurTintColor, value ?? "1E1E1E");
+        }
+
+        public double ToastWidth
+        {
+            get => _toastWidth;
+            set => SetValue(ref _toastWidth, Math.Max(200, Math.Min(600, value)));
+        }
+
+        public double ToastMinHeight
+        {
+            get => _toastMinHeight;
+            set => SetValue(ref _toastMinHeight, Math.Max(50, Math.Min(200, value)));
+        }
+
+        public double ToastMaxHeight
+        {
+            get => _toastMaxHeight;
+            set => SetValue(ref _toastMaxHeight, Math.Max(80, Math.Min(300, value)));
+        }
+
+        public int ToastDurationMs
+        {
+            get => _toastDurationMs;
+            set => SetValue(ref _toastDurationMs, Math.Max(1000, Math.Min(10000, value)));
+        }
+
+        public string ToastBorderColor
+        {
+            get => _toastBorderColor;
+            set => SetValue(ref _toastBorderColor, value ?? "2A2A2A");
+        }
+
+        public double ToastBorderThickness
+        {
+            get => _toastBorderThickness;
+            set => SetValue(ref _toastBorderThickness, Math.Max(0, Math.Min(5, value)));
+        }
+
+        public double ToastCornerRadius
+        {
+            get => _toastCornerRadius;
+            set => SetValue(ref _toastCornerRadius, Math.Max(0, Math.Min(16, value)));
+        }
+
+        // Toast accent/title color (RGB hex without # prefix)
+        private string _toastAccentColor = "64B5F6";  // Default info blue
+
+        public string ToastAccentColor
+        {
+            get => _toastAccentColor;
+            set => SetValue(ref _toastAccentColor, value ?? "64B5F6");
+        }
+
+        // Toast text color (RGB hex without # prefix)
+        private string _toastTextColor = "E0E0E0";
+
+        public string ToastTextColor
+        {
+            get => _toastTextColor;
+            set => SetValue(ref _toastTextColor, value ?? "E0E0E0");
+        }
+
+        // Toast accent bar settings
+        private bool _enableToastAccentBar = true;
+        private double _toastAccentBarThickness = 4;
+
+        public bool EnableToastAccentBar
+        {
+            get => _enableToastAccentBar;
+            set => SetValue(ref _enableToastAccentBar, value);
+        }
+
+        public double ToastAccentBarThickness
+        {
+            get => _toastAccentBarThickness;
+            set => SetValue(ref _toastAccentBarThickness, Math.Max(0, Math.Min(10, value)));
+        }
+
         public void BeginEdit() { }
         public void CancelEdit() { }
         public void EndEdit() { }
@@ -222,7 +392,31 @@ namespace ControlUp
                     BackgroundOpacity == o.BackgroundOpacity &&
                     BorderColor == o.BorderColor &&
                     BorderThickness == o.BorderThickness &&
-                    CornerRadius == o.CornerRadius;
+                    CornerRadius == o.CornerRadius &&
+                    // Effects
+                    BlurWindowPadding == o.BlurWindowPadding &&
+                    EnableVignette == o.EnableVignette &&
+                    VignetteColor == o.VignetteColor &&
+                    VignetteOpacity == o.VignetteOpacity &&
+                    VignetteSize == o.VignetteSize &&
+                    // Toast Settings
+                    EnableToastNotifications == o.EnableToastNotifications &&
+                    ToastPosition == o.ToastPosition &&
+                    ToastEdgeMargin == o.ToastEdgeMargin &&
+                    EnableToastBlur == o.EnableToastBlur &&
+                    ToastBlurOpacity == o.ToastBlurOpacity &&
+                    ToastBlurTintColor == o.ToastBlurTintColor &&
+                    ToastWidth == o.ToastWidth &&
+                    ToastMinHeight == o.ToastMinHeight &&
+                    ToastMaxHeight == o.ToastMaxHeight &&
+                    ToastDurationMs == o.ToastDurationMs &&
+                    ToastBorderColor == o.ToastBorderColor &&
+                    ToastBorderThickness == o.ToastBorderThickness &&
+                    ToastCornerRadius == o.ToastCornerRadius &&
+                    ToastAccentColor == o.ToastAccentColor &&
+                    ToastTextColor == o.ToastTextColor &&
+                    EnableToastAccentBar == o.EnableToastAccentBar &&
+                    ToastAccentBarThickness == o.ToastAccentBarThickness;
             }
             return false;
         }
@@ -335,6 +529,27 @@ namespace ControlUp
         Hotkey
     }
 
+    public enum ToastPositionEnum
+    {
+        [Description("Top Right")]
+        TopRight,
+
+        [Description("Top Left")]
+        TopLeft,
+
+        [Description("Bottom Right")]
+        BottomRight,
+
+        [Description("Bottom Left")]
+        BottomLeft,
+
+        [Description("Top Center")]
+        TopCenter,
+
+        [Description("Bottom Center")]
+        BottomCenter
+    }
+
     /// <summary>Preset color styles for notification appearance.</summary>
     public enum NotificationStylePreset
     {
@@ -364,5 +579,36 @@ namespace ControlUp
 
         [Description("Rose Pink")]
         RosePink
+    }
+
+    /// <summary>Preset color styles for toast notifications.</summary>
+    public enum ToastStylePreset
+    {
+        [Description("Custom")]
+        Custom,
+
+        [Description("Ocean Blue (Default)")]
+        OceanBlue,
+
+        [Description("Midnight Purple")]
+        MidnightPurple,
+
+        [Description("Forest Green")]
+        ForestGreen,
+
+        [Description("Sunset Orange")]
+        SunsetOrange,
+
+        [Description("Crimson Red")]
+        CrimsonRed,
+
+        [Description("Charcoal Gray")]
+        CharcoalGray,
+
+        [Description("Rose Pink")]
+        RosePink,
+
+        [Description("Ocean Teal")]
+        OceanTeal
     }
 }

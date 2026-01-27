@@ -92,6 +92,119 @@ namespace ControlUp
             NotificationStylePreset.RosePink
         };
 
+        // Toast style preset selection
+        private ToastStylePreset _selectedToastStylePreset = ToastStylePreset.Custom;
+        public ToastStylePreset SelectedToastStylePreset
+        {
+            get => _selectedToastStylePreset;
+            set
+            {
+                if (_selectedToastStylePreset != value)
+                {
+                    _selectedToastStylePreset = value;
+                    OnPropertyChanged();
+                    if (value != ToastStylePreset.Custom)
+                    {
+                        ApplyToastStylePreset(value);
+                    }
+                }
+            }
+        }
+
+        public IEnumerable<ToastStylePreset> AvailableToastStylePresets => new[]
+        {
+            ToastStylePreset.Custom,
+            ToastStylePreset.OceanBlue,
+            ToastStylePreset.MidnightPurple,
+            ToastStylePreset.ForestGreen,
+            ToastStylePreset.SunsetOrange,
+            ToastStylePreset.CrimsonRed,
+            ToastStylePreset.CharcoalGray,
+            ToastStylePreset.RosePink,
+            ToastStylePreset.OceanTeal
+        };
+
+        private void ApplyToastStylePreset(ToastStylePreset preset)
+        {
+            // All presets use acrylic blur with low opacity (40 or below) to show the blur effect
+            Settings.EnableToastBlur = true;
+
+            switch (preset)
+            {
+                case ToastStylePreset.OceanBlue:
+                    // Default info style - blue accent
+                    Settings.ToastBlurOpacity = 35;
+                    Settings.ToastBlurTintColor = "0D1B2A";
+                    Settings.ToastBorderColor = "1B3A5C";
+                    Settings.ToastAccentColor = "64B5F6";
+                    Settings.ToastTextColor = "E0E0E0";
+                    break;
+
+                case ToastStylePreset.MidnightPurple:
+                    // Deep purple tones
+                    Settings.ToastBlurOpacity = 38;
+                    Settings.ToastBlurTintColor = "1A0A2E";
+                    Settings.ToastBorderColor = "4A148C";
+                    Settings.ToastAccentColor = "CE93D8";
+                    Settings.ToastTextColor = "E0E0E0";
+                    break;
+
+                case ToastStylePreset.ForestGreen:
+                    // Natural green
+                    Settings.ToastBlurOpacity = 35;
+                    Settings.ToastBlurTintColor = "0D1F12";
+                    Settings.ToastBorderColor = "1B5E20";
+                    Settings.ToastAccentColor = "81C784";
+                    Settings.ToastTextColor = "E0E0E0";
+                    break;
+
+                case ToastStylePreset.SunsetOrange:
+                    // Warm orange
+                    Settings.ToastBlurOpacity = 32;
+                    Settings.ToastBlurTintColor = "1A0F00";
+                    Settings.ToastBorderColor = "E65100";
+                    Settings.ToastAccentColor = "FFB74D";
+                    Settings.ToastTextColor = "E0E0E0";
+                    break;
+
+                case ToastStylePreset.CrimsonRed:
+                    // Bold red
+                    Settings.ToastBlurOpacity = 35;
+                    Settings.ToastBlurTintColor = "1A0505";
+                    Settings.ToastBorderColor = "B71C1C";
+                    Settings.ToastAccentColor = "FF8A80";
+                    Settings.ToastTextColor = "E0E0E0";
+                    break;
+
+                case ToastStylePreset.CharcoalGray:
+                    // Neutral dark gray
+                    Settings.ToastBlurOpacity = 40;
+                    Settings.ToastBlurTintColor = "121212";
+                    Settings.ToastBorderColor = "424242";
+                    Settings.ToastAccentColor = "BDBDBD";
+                    Settings.ToastTextColor = "E0E0E0";
+                    break;
+
+                case ToastStylePreset.RosePink:
+                    // Soft pink
+                    Settings.ToastBlurOpacity = 35;
+                    Settings.ToastBlurTintColor = "1A0510";
+                    Settings.ToastBorderColor = "880E4F";
+                    Settings.ToastAccentColor = "F48FB1";
+                    Settings.ToastTextColor = "E0E0E0";
+                    break;
+
+                case ToastStylePreset.OceanTeal:
+                    // Cool teal
+                    Settings.ToastBlurOpacity = 35;
+                    Settings.ToastBlurTintColor = "001A1A";
+                    Settings.ToastBorderColor = "00838F";
+                    Settings.ToastAccentColor = "4DD0E1";
+                    Settings.ToastTextColor = "E0E0E0";
+                    break;
+            }
+        }
+
         private void ApplyStylePreset(NotificationStylePreset preset)
         {
             // All presets use acrylic blur, keep corner radius at 0
@@ -290,6 +403,21 @@ namespace ControlUp
             catch (Exception ex)
             {
                 Logger.Error(ex, "Failed to preview notification");
+                PlayniteApi.Dialogs.ShowErrorMessage($"Preview failed: {ex.Message}", "Error");
+            }
+        });
+
+        public RelayCommand PreviewToastCommand => new RelayCommand(() =>
+        {
+            try
+            {
+                // Sync settings before preview
+                NotifierHelper.SyncSettings(Settings);
+                NotifierHelper.ShowInfo("Switched to Fullscreen Mode", "ControlUp");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to preview toast");
                 PlayniteApi.Dialogs.ShowErrorMessage($"Preview failed: {ex.Message}", "Error");
             }
         });
