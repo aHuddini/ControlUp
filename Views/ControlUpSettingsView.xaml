@@ -131,6 +131,8 @@
                                         IsEnabled="{Binding LongPressSliderEnabled}"/>
                                 <TextBlock Text="{Binding Settings.LongPressDelayMs, StringFormat={}{0} ms}"
                                           Margin="10,0,0,0" VerticalAlignment="Center" Width="60"/>
+                                <TextBlock Text="{Binding LongPressDelaySeconds}"
+                                          Margin="5,0,0,0" VerticalAlignment="Center" Foreground="Gray"/>
                             </StackPanel>
 
                             <TextBlock Text="Hotkey Cooldown:" Margin="0,15,0,5"/>
@@ -259,6 +261,7 @@
 
                             <TextBlock Text="Blur Tint Color:" Margin="0,10,0,5"/>
                             <controls:ColorPickerButton SelectedColor="{Binding Settings.BlurTintColor}"/>
+
                         </StackPanel>
                     </Border>
 
@@ -448,8 +451,9 @@
                             <StackPanel Orientation="Horizontal">
                                 <Slider Value="{Binding Settings.ToastWidth}"
                                         Minimum="200" Maximum="600" Width="200"
-                                        TickFrequency="50" IsSnapToTickEnabled="False"/>
-                                <TextBlock Text="{Binding Settings.ToastWidth, StringFormat={}{0} px}"
+                                        TickFrequency="1" IsSnapToTickEnabled="True"
+                                        SmallChange="1" LargeChange="10"/>
+                                <TextBlock Text="{Binding Settings.ToastWidth, StringFormat={}{0:F0} px}"
                                           Margin="10,0,0,0" VerticalAlignment="Center" Width="60"/>
                             </StackPanel>
                         </StackPanel>
@@ -507,6 +511,14 @@
                                         TickFrequency="0.5" IsSnapToTickEnabled="True"/>
                                 <TextBlock Text="{Binding Settings.ToastBorderThickness, StringFormat={}{0:F1} px}"
                                           Margin="10,0,0,0" VerticalAlignment="Center" Width="50"/>
+                            </StackPanel>
+
+                            <TextBlock Text="Border Opacity:" Margin="0,10,0,5"/>
+                            <StackPanel Orientation="Horizontal">
+                                <Slider Value="{Binding Settings.ToastBorderOpacity}"
+                                        Minimum="0" Maximum="255" Width="200"/>
+                                <TextBlock Text="{Binding Settings.ToastBorderOpacity, StringFormat={}{0}}"
+                                          Margin="10,0,0,0" VerticalAlignment="Center" Width="40"/>
                             </StackPanel>
                         </StackPanel>
                     </Border>
@@ -682,6 +694,23 @@
                             </TextBlock>
                             <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,10,0,0" FontStyle="Italic">
                                 For non-Xbox controllers, XInput mode provides the most reliable hotkey detection.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- XInput Controller #1 Display -->
+                    <TextBlock Text="&quot;XInput Controller #1&quot; Name" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Why am I seeing this name?" FontWeight="SemiBold" Foreground="#64B5F6" Margin="0,0,0,8"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,10">
+                                If your controller is showing as "XInput Controller #1" (or #2, #3, etc.) instead of its actual name, this is normal and nothing is functionally wrong.
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                ControlUp displays the controller name as reported by Playnite's SDK. When using XInput mode, Windows doesn't provide detailed device names - it only identifies controllers by their slot number.
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,10,0,0" FontStyle="Italic">
+                                You can verify this by checking Playnite's Settings → Input, which shows the same generic names.
                             </TextBlock>
                         </StackPanel>
                     </Border>

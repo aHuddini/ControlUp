@@ -46,6 +46,10 @@ namespace ControlUp
             {
                 OnPropertyChanged(nameof(LongPressSliderEnabled));
             }
+            if (e.PropertyName == nameof(ControlUpSettings.LongPressDelayMs))
+            {
+                OnPropertyChanged(nameof(LongPressDelaySeconds));
+            }
         }
 
         // Filtered list of trigger modes for UI (excludes legacy values)
@@ -59,6 +63,9 @@ namespace ControlUp
 
         // Computed property for long press slider enabled state
         public bool LongPressSliderEnabled => Settings?.EnableHotkey == true && Settings?.RequireLongPress == true;
+
+        // Computed property for long press delay in seconds (for display)
+        public string LongPressDelaySeconds => Settings != null ? $"({Settings.LongPressDelayMs / 1000.0:F2}s)" : "";
 
         // Style preset selection
         private NotificationStylePreset _selectedStylePreset = NotificationStylePreset.Custom;
@@ -128,6 +135,7 @@ namespace ControlUp
         {
             // All presets use acrylic blur with low opacity (40 or below) to show the blur effect
             Settings.EnableToastBlur = true;
+            Settings.ToastBorderOpacity = 70;
 
             switch (preset)
             {
@@ -195,8 +203,8 @@ namespace ControlUp
                     break;
 
                 case ToastStylePreset.OceanTeal:
-                    // Cool teal
-                    Settings.ToastBlurOpacity = 35;
+                    // Cool teal (default)
+                    Settings.ToastBlurOpacity = 30;
                     Settings.ToastBlurTintColor = "001A1A";
                     Settings.ToastBorderColor = "00838F";
                     Settings.ToastAccentColor = "4DD0E1";
@@ -207,90 +215,69 @@ namespace ControlUp
 
         private void ApplyStylePreset(NotificationStylePreset preset)
         {
-            // All presets use acrylic blur, keep corner radius at 0
+            // All presets use acrylic blur with consistent opacity values
             Settings.EnableBlur = true;
             Settings.BlurMode = 1; // Acrylic
+            Settings.BlurOpacity = 49;
+            Settings.BackgroundOpacity = 138;
+            Settings.BorderThickness = 1;
 
             switch (preset)
             {
                 case NotificationStylePreset.MidnightBlue:
                     // Default style - deep blue
                     Settings.BlurTintColor = "00106C";
-                    Settings.BlurOpacity = 49;
                     Settings.BackgroundColor = "071134";
-                    Settings.BackgroundOpacity = 138;
                     Settings.BorderColor = "354171";
-                    Settings.BorderThickness = 1;
                     break;
 
                 case NotificationStylePreset.DeepPurple:
                     // Rich purple tones
                     Settings.BlurTintColor = "4A148C";
-                    Settings.BlurOpacity = 60;
                     Settings.BackgroundColor = "1A0033";
-                    Settings.BackgroundOpacity = 140;
                     Settings.BorderColor = "631597";
-                    Settings.BorderThickness = 1;
                     break;
 
                 case NotificationStylePreset.ForestGreen:
                     // Natural green
                     Settings.BlurTintColor = "1B5E20";
-                    Settings.BlurOpacity = 55;
                     Settings.BackgroundColor = "0D2818";
-                    Settings.BackgroundOpacity = 145;
                     Settings.BorderColor = "236529";
-                    Settings.BorderThickness = 1;
                     break;
 
                 case NotificationStylePreset.CrimsonRed:
                     // Bold red
                     Settings.BlurTintColor = "8B0000";
-                    Settings.BlurOpacity = 50;
                     Settings.BackgroundColor = "1A0505";
-                    Settings.BackgroundOpacity = 150;
                     Settings.BorderColor = "8C1515";
-                    Settings.BorderThickness = 1;
                     break;
 
                 case NotificationStylePreset.SunsetOrange:
                     // Warm orange
                     Settings.BlurTintColor = "E65100";
-                    Settings.BlurOpacity = 45;
                     Settings.BackgroundColor = "1A0F00";
-                    Settings.BackgroundOpacity = 155;
                     Settings.BorderColor = "AA4800";
-                    Settings.BorderThickness = 1;
                     break;
 
                 case NotificationStylePreset.OceanTeal:
                     // Cool teal
                     Settings.BlurTintColor = "006064";
-                    Settings.BlurOpacity = 55;
                     Settings.BackgroundColor = "001A1A";
-                    Settings.BackgroundOpacity = 140;
                     Settings.BorderColor = "00757B";
-                    Settings.BorderThickness = 1;
                     break;
 
                 case NotificationStylePreset.CharcoalGray:
                     // Neutral dark gray
                     Settings.BlurTintColor = "212121";
-                    Settings.BlurOpacity = 65;
                     Settings.BackgroundColor = "0A0A0A";
-                    Settings.BackgroundOpacity = 160;
                     Settings.BorderColor = "404040";
-                    Settings.BorderThickness = 1;
                     break;
 
                 case NotificationStylePreset.RosePink:
                     // Soft pink
                     Settings.BlurTintColor = "880E4F";
-                    Settings.BlurOpacity = 50;
                     Settings.BackgroundColor = "1A0510";
-                    Settings.BackgroundOpacity = 145;
                     Settings.BorderColor = "810E4A";
-                    Settings.BorderThickness = 1;
                     break;
             }
         }

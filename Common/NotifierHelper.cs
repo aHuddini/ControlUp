@@ -54,23 +54,23 @@ namespace ControlUp.Common
         /// Whether toast notifications are enabled
         public static bool EnableToasts = true;
 
-        /// Where toasts appear on screen (default: BottomRight)
-        public static ToastPosition CurrentToastPosition = ToastPosition.BottomRight;
+        /// Where toasts appear on screen (default: TopRight)
+        public static ToastPosition CurrentToastPosition = ToastPosition.TopRight;
 
-        /// Margin from screen edge in pixels (default: 30)
-        public static int ToastEdgeMargin = 30;
+        /// Margin from screen edge in pixels (default: 20)
+        public static int ToastEdgeMargin = 20;
 
         /// Enable acrylic blur effect (default: true)
         public static bool EnableToastBlur = true;
 
-        /// Blur opacity 0-255 (default: 180)
-        public static byte ToastBlurOpacity = 180;
+        /// Blur opacity 0-255 (default: 30 - Ocean Teal)
+        public static byte ToastBlurOpacity = 30;
 
-        /// Blur tint color as 0xRRGGBB (default: #1E1E1E)
-        public static uint ToastBlurTintColor = 0x1E1E1E;
+        /// Blur tint color as 0xRRGGBB (default: #001A1A - Ocean Teal)
+        public static uint ToastBlurTintColor = 0x001A1A;
 
-        /// Toast width in pixels (default: 350)
-        public static double ToastWidth = 350;
+        /// Toast width in pixels (default: 216)
+        public static double ToastWidth = 216;
 
         /// Toast min height in pixels (default: 70)
         public static double ToastMinHeight = 70;
@@ -81,27 +81,29 @@ namespace ControlUp.Common
         /// Display duration in ms (default: 3000)
         public static int ToastDurationMs = 3000;
 
-        /// Border color as 0xRRGGBB (default: #2A2A2A)
-        public static uint ToastBorderColorValue = 0x2A2A2A;
+        /// Border color as 0xRRGGBB (default: #00838F - Ocean Teal)
+        public static uint ToastBorderColorValue = 0x00838F;
 
-        /// Border thickness (default: 1)
-        public static double ToastBorderThickness = 1;
+        /// Border thickness (default: 0.5)
+        public static double ToastBorderThickness = 0.5;
+
+        /// Border opacity 0-255 (default: 70)
+        public static byte ToastBorderOpacity = 70;
 
         /// Corner radius (default: 0 to avoid blur artifacts)
         public static double ToastCornerRadius = 0;
 
-        /// Accent/title color as 0xRRGGBB (default: #64B5F6 - info blue)
-        public static uint ToastAccentColorValue = 0x64B5F6;
+        /// Accent/title color as 0xRRGGBB (default: #4DD0E1 - Ocean Teal)
+        public static uint ToastAccentColorValue = 0x4DD0E1;
 
         /// Text color as 0xRRGGBB (default: #E0E0E0)
         public static uint ToastTextColorValue = 0xE0E0E0;
 
         /// Whether to show the accent bar on the left side
-        public static bool EnableAccentBar = true;
+        public static bool EnableAccentBar = false;
 
         /// Accent bar thickness in pixels (default: 4)
         public static double AccentBarThickness = 4;
-
 
         // ============================================================================
         // Windows Acrylic Blur Effect API
@@ -171,6 +173,7 @@ namespace ControlUp.Common
             ToastDurationMs = settings.ToastDurationMs;
             ToastEdgeMargin = settings.ToastEdgeMargin;
             ToastBorderThickness = settings.ToastBorderThickness;
+            ToastBorderOpacity = (byte)settings.ToastBorderOpacity;
             ToastCornerRadius = settings.ToastCornerRadius;
             CurrentToastPosition = (ToastPosition)settings.ToastPosition;
 
@@ -415,7 +418,7 @@ namespace ControlUp.Common
 
             // Outer border
             var (borderR, borderG, borderB) = HexToRgb(ToastBorderColorValue);
-            var outerBorderColor = Color.FromRgb(borderR, borderG, borderB);
+            var outerBorderColor = Color.FromArgb(ToastBorderOpacity, borderR, borderG, borderB);
 
             var outerBorder = new Border
             {

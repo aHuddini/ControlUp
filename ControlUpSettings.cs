@@ -238,17 +238,18 @@ namespace ControlUp
 
         // Toast Notification Settings
         private bool _enableToastNotifications = true;
-        private int _toastPosition = 4; // BottomRight
-        private int _toastEdgeMargin = 30;
+        private int _toastPosition = 0; // TopRight
+        private int _toastEdgeMargin = 20;
         private bool _enableToastBlur = true;
-        private int _toastBlurOpacity = 180;
-        private string _toastBlurTintColor = "1E1E1E";
-        private double _toastWidth = 350;
+        private int _toastBlurOpacity = 30;  // Ocean Teal default
+        private string _toastBlurTintColor = "001A1A";
+        private double _toastWidth = 216;
         private double _toastMinHeight = 70;
         private double _toastMaxHeight = 140;
         private int _toastDurationMs = 3000;
-        private string _toastBorderColor = "2A2A2A";
-        private double _toastBorderThickness = 0;
+        private string _toastBorderColor = "00838F";
+        private double _toastBorderThickness = 0.5;
+        private int _toastBorderOpacity = 70;
         private double _toastCornerRadius = 0;
 
         public bool EnableToastNotifications
@@ -324,6 +325,13 @@ namespace ControlUp
             set => SetValue(ref _toastBorderThickness, Math.Max(0, Math.Min(5, value)));
         }
 
+        /// <summary>Opacity of toast border (0-255). Default: 70.</summary>
+        public int ToastBorderOpacity
+        {
+            get => _toastBorderOpacity;
+            set => SetValue(ref _toastBorderOpacity, Math.Max(0, Math.Min(255, value)));
+        }
+
         public double ToastCornerRadius
         {
             get => _toastCornerRadius;
@@ -331,12 +339,12 @@ namespace ControlUp
         }
 
         // Toast accent/title color (RGB hex without # prefix)
-        private string _toastAccentColor = "64B5F6";  // Default info blue
+        private string _toastAccentColor = "4DD0E1";  // Ocean Teal accent
 
         public string ToastAccentColor
         {
             get => _toastAccentColor;
-            set => SetValue(ref _toastAccentColor, value ?? "64B5F6");
+            set => SetValue(ref _toastAccentColor, value ?? "4DD0E1");
         }
 
         // Toast text color (RGB hex without # prefix)
@@ -349,7 +357,7 @@ namespace ControlUp
         }
 
         // Toast accent bar settings
-        private bool _enableToastAccentBar = true;
+        private bool _enableToastAccentBar = false;
         private double _toastAccentBarThickness = 4;
 
         public bool EnableToastAccentBar
@@ -421,6 +429,7 @@ namespace ControlUp
                     ToastDurationMs == o.ToastDurationMs &&
                     ToastBorderColor == o.ToastBorderColor &&
                     ToastBorderThickness == o.ToastBorderThickness &&
+                    ToastBorderOpacity == o.ToastBorderOpacity &&
                     ToastCornerRadius == o.ToastCornerRadius &&
                     ToastAccentColor == o.ToastAccentColor &&
                     ToastTextColor == o.ToastTextColor &&
