@@ -22,9 +22,9 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 *Currently Tested on an Xbox Series X USB/Wireless Controller*
 
-## What's New in 2.0
+## What's New in 2.0.0
 
-Version 2.0 is a major release that completely overhauls the extension for **Playnite SDK 6.15**, taking advantage of the new Controller API commands and Playnite's SDL support for Desktop Mode.
+Version 2.0.0 is a major release that completely overhauls the extension for **Playnite SDK 6.15**, taking advantage of the new Controller API commands and Playnite's SDL support for Desktop Mode.
 
 - **Major: Event-based controller detection** — No more polling. Performance is equally fast between DirectInput and XInput gamepads. Controllers are reliably detected so long as SDL supports them.
 - **Polling removed** — Power saving and idle mode features are no longer needed thanks to SDK event-based triggers.
