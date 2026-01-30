@@ -24,12 +24,12 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 ## What's New in 2.0
 
-Completely overhauled for **Playnite SDK 6.15**, taking advantage of the new Controller API commands and Playnite's SDL support for Desktop Mode.
+Version 2.0 is a major release that completely overhauls the extension for **Playnite SDK 6.15**, taking advantage of the new Controller API commands and Playnite's SDL support for Desktop Mode.
 
-- **Event-based controller detection** — No more polling. Performance is equally fast between DirectInput and XInput gamepads. Controllers are reliably detected so long as SDL supports them.
+- **Major: Event-based controller detection** — No more polling. Performance is equally fast between DirectInput and XInput gamepads. Controllers are reliably detected so long as SDL supports them.
 - **Polling removed** — Power saving and idle mode features are no longer needed thanks to SDK event-based triggers.
 - **Long press reworked** — Timer-based approach after initial button press to work with event-based SDK. 2 seconds max.
-- **Blur padding** — Extends the blur window beyond the border for a pleasant bleed effect. Combine with border opacity for best results.
+- **Blur padding** — Extends the pop-up blur window beyond the border for a pleasant bleed effect. Combine with border opacity for best results.
 - **Border opacity** — Lower values let the acrylic blur beautifully bleed through the border.
 - **Vignette effect (experimental)** — Optional edge-darkening for the pop-up.
 - **Toast notifications** — Non-blocking toasts with acrylic blur, defaulting to "Ocean Teal" to showcase notification potential.
