@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.5-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/version-2.0-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 </p>
 
 ## About
-A Playnite extension that detects game controller connections and gamepad hotkeys, displaying a customizable popup prompting users to switch to fullscreen mode.
+A Playnite extension that detects game controller connections and gamepad hotkeys, displaying a customizable popup prompting users to switch to fullscreen mode. Built on Playnite SDK 6.15 and its Controller API for Desktop Mode.
 
 Includes the option to skip the pop-up to let the user directly switch to fullscreen.
 
@@ -22,29 +22,32 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 *Currently Tested on an Xbox Series X USB/Wireless Controller*
 
-## What's New in 1.0.5
+## What's New in 2.0
 
-- **SDL Hotkey Fallback**: Non-XInput controllers (8BitDo, PlayStation, etc.) should now work with hotkeys
-- **Style Presets**: Quick color scheme presets for notification appearance
-- **Troubleshooting Tab**: In-app help for common issues (SmartScreen, controller modes, hotkeys)
+Completely overhauled for **Playnite SDK 6.15**, taking advantage of the new Controller API commands and Playnite's SDL support for Desktop Mode.
 
-See [CHANGELOG.md](CHANGELOG.md) for full details.
-
-## What's New in 1.0.4
-
-- **Fixed popup crashes** - Resolved crash when opening popup multiple times, particularly in Notification Previews
-- **Optional Idle mode for power saving** - Reduces polling when no controller connected (configurable in settings)
-- **Lazy HID initialization** - Less resource usage for users without PlayStation controllers
+- **Event-based controller detection** — No more polling. Performance is equally fast between DirectInput and XInput gamepads. Controllers are reliably detected so long as SDL supports them.
+- **Polling removed** — Power saving and idle mode features are no longer needed thanks to SDK event-based triggers.
+- **Long press reworked** — Timer-based approach after initial button press to work with event-based SDK. 2 seconds max.
+- **Blur padding** — Extends the blur window beyond the border for a pleasant bleed effect. Combine with border opacity for best results.
+- **Border opacity** — Lower values let the acrylic blur beautifully bleed through the border.
+- **Vignette effect (experimental)** — Optional edge-darkening for the pop-up.
+- **Toast notifications** — Non-blocking toasts with acrylic blur, defaulting to "Ocean Teal" to showcase notification potential.
+- **Standardized presets** — Consistent values across all pop-up and toast style presets.
+- **Troubleshooting updated** — Explains "XInput Controller #1" display name (SDL-related, not a bug).
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
 ## Features
 
 - **Detection Modes**: New connection only, any controller anytime, or startup only
-- **Controller Detection Popup**: When a controller is connected, a customizable popup appears asking if you want to switch to fullscreen mode
-- **Customizable Pop-up**: Position, size, timing, acrylic blur, colors, and borders, live preview
-- **Controller Hotkey**: Trigger fullscreen with button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons with long press
-- **Controller Navigation**: Navigate the popup with D-pad/thumbsticks, A to confirm, B to cancel
+- **Controller Detection Popup**: Customizable popup when a controller is connected, asking to switch to fullscreen
+- **Toast Notifications**: Brief, non-blocking notifications for events like auto-switching
+- **Controller Hotkey**: Button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons with long press
+- **Controller Navigation**: D-pad/thumbsticks to navigate, A to confirm, B to cancel
+- **Style Presets**: Quick-apply color schemes for both pop-up and toast notifications
+- **Acrylic Blur**: Windows Composition API blur with customizable opacity, tint, and padding
+- **Live Preview**: Test appearance from settings before saving
 
 ## Installation
 
@@ -57,28 +60,23 @@ See [CHANGELOG.md](CHANGELOG.md) for full details.
 
 ### General Settings
 
-- **Detection Mode**: When to trigger the fullscreen popup
-  - Disabled - No automatic switching
-  - New Connection Only - Trigger when controller is newly connected
-  - Any Controller Anytime - Trigger on startup and new connections
-  - Startup Only - Only check when Playnite starts
+- **Detection Mode**: When to trigger the fullscreen popup (Disabled, New Connection Only, Any Controller Anytime, Startup Only)
 - **Skip Popup on Connection**: Switch directly to fullscreen without showing popup
-- **Enable Logging**: Turn on detailed logging for troubleshooting
+- **Enable Logging**: Detailed logging for troubleshooting
 
 ### Hotkey Settings
 
-- **Hotkey Combination**: Choose from many button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons
-- **Long Press**: Require holding the hotkey instead of instant tap (recommended for single buttons like Guide)
-- **Long Press Duration**: How long to hold (300-2000ms)
-- **Skip Popup on Hotkey**: Go directly to fullscreen without showing popup
-- **Polling Interval**: How often to check for hotkey press (50-100ms recommended)
+- **Hotkey Combination**: Many button combos or single buttons
+- **Long Press**: Require holding the hotkey (300-2000ms) — recommended for single buttons like Guide
+- **Hotkey Cooldown**: Delay after popup closes before hotkey can trigger again
 
-### Notification Settings
+### Pop-Up Settings
 
-- **Position**: 7 screen positions available
-- **Size & Timing**: Adjustable width, height, and auto-close duration
-- **Blur Effect**: Acrylic blur with adjustable opacity and tint color
-- **Visual Style**: Background, border, and corner radius customization
+- Style presets, position, size, timing, acrylic blur, background, border with opacity, corner radius, blur padding, vignette effect, and live preview
+
+### Toast Settings
+
+- Style presets (Ocean Teal default), position, size, duration, acrylic blur, border with opacity, accent bar, and colors
 
 ## Requirements
 
@@ -103,7 +101,11 @@ If the popup closes but fullscreen mode never appears, **Windows SmartScreen** m
 4. At the bottom of the General tab, if you see "This file came from another computer and might be blocked to help protect this computer", check the **Unblock** checkbox
 5. Click **Apply** and **OK**
 
-Alternatively, you can run `Playnite.FullscreenApp.exe` manually once and click "Run anyway" when SmartScreen prompts you.
+Alternatively, run `Playnite.FullscreenApp.exe` manually once and click "Run anyway" when SmartScreen prompts.
+
+### Controller shows as "XInput Controller #1"
+
+This is normal and SDL-related — not a bug in ControlUp or Playnite. When using XInput mode, Windows only identifies controllers by slot number and doesn't provide detailed device names. Your controller is working correctly. You can verify this in Playnite's Settings > Input, which shows the same generic names.
 
 ## Development
 
@@ -124,7 +126,7 @@ Run the packaging script:
 The `.pext` file will be created in the `pext` folder.
 
 ### Libraries & Dependencies
-- **Playnite SDK** - Extension framework
+- **Playnite SDK 6.15.0** - Extension framework
 - **SDL2** - Controller detection and input mapping (zlib license)
 - **MaterialDesignThemes & MaterialDesignColors** - WPF UI components (MIT)
 - **Microsoft.Xaml.Behaviors.Wpf** - XAML behaviors (MIT)

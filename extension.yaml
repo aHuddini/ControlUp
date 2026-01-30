@@ -1,11 +1,11 @@
 Id: ControlUp.8d646e1b-c919-49d7-be40-5ef9960064bc
 Name: ControlUp
 Author: Huddini
-Version: 1.0.5
+Version: 2.0
 Module: ControlUp.dll
 Type: GenericPlugin
 Icon: icon.png
-Description: A Playnite extension that detects game controller connections and displays a customizable popup prompting users to switch to fullscreen mode, with optional automatic fullscreen switching.
+Description: A Playnite extension built on SDK 6.15 that detects game controller connections and displays a customizable popup prompting users to switch to fullscreen mode, with controller hotkeys and automatic switching.
 Links:
   - Name: GitHub Repository
     Url: https://github.com/aHuddini/ControlUp

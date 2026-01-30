@@ -790,5 +790,57 @@
                 </StackPanel>
             </ScrollViewer>
         </TabItem>
+
+        <!-- Credits Tab -->
+        <TabItem Header="Credits">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="20">
+                    <TextBlock Text="Credits" FontSize="18" FontWeight="Bold" Margin="0,0,0,20"/>
+
+                    <!-- Special Thanks -->
+                    <TextBlock Text="Special Thanks" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock FontSize="13" Foreground="#4DD0E1" FontWeight="SemiBold">
+                                <Hyperlink NavigateUri="https://www.reddit.com/user/Crowcz" RequestNavigate="Hyperlink_RequestNavigate" Foreground="#4DD0E1">u/Crowcz</Hyperlink>
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,4,0,16">
+                                Quickly updated the Playnite SDK and provided pre-release test builds, enabling ControlUp to adapt to SDK 6.15 ahead of the public release.
+                            </TextBlock>
+
+                            <TextBlock FontSize="13" Foreground="#4DD0E1" FontWeight="SemiBold">
+                                <Hyperlink NavigateUri="https://www.reddit.com/user/Amazing_Emergency_69" RequestNavigate="Hyperlink_RequestNavigate" Foreground="#4DD0E1">u/Amazing_Emergency_69</Hyperlink>
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,4,0,16">
+                                Extensively tested and provided feedback throughout the entire lifecycle of the extension.
+                            </TextBlock>
+
+                            <TextBlock FontSize="13" Foreground="#4DD0E1" FontWeight="SemiBold">
+                                <Hyperlink NavigateUri="https://www.reddit.com/r/playnite/" RequestNavigate="Hyperlink_RequestNavigate" Foreground="#4DD0E1">r/playnite</Hyperlink>
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,4,0,0">
+                                For the warm reception and patience while early bugs were being ironed out.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Links -->
+                    <TextBlock Text="Links" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock FontSize="12">
+                                <Hyperlink NavigateUri="https://github.com/aHuddini/ControlUp" RequestNavigate="Hyperlink_RequestNavigate" Foreground="#64B5F6">GitHub Repository</Hyperlink>
+                            </TextBlock>
+                            <TextBlock FontSize="12" Margin="0,6,0,0">
+                                <Hyperlink NavigateUri="https://github.com/aHuddini/ControlUp/issues" RequestNavigate="Hyperlink_RequestNavigate" Foreground="#64B5F6">Report Issues</Hyperlink>
+                            </TextBlock>
+                            <TextBlock FontSize="12" Margin="0,6,0,0">
+                                <Hyperlink NavigateUri="https://ko-fi.com/Z8Z11SG2IK" RequestNavigate="Hyperlink_RequestNavigate" Foreground="#64B5F6">Support on Ko-fi</Hyperlink>
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
     </TabControl>
 </UserControl>
