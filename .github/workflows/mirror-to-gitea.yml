@@ -1,11 +1,8 @@
 name: Mirror to Gitea
 
 on:
-  push:
-    branches:
-      - '**'
-    tags:
-      - '**'
+  schedule:
+    - cron: '0 */10 * * *'
 
 jobs:
   mirror:
@@ -19,4 +16,5 @@ jobs:
       - name: Push mirror to Gitea
         run: |
           git remote add gitea https://aHuddini:${{ secrets.GITEA_TOKEN }}@gitea.com/aHuddini/ControlUp.git
-          git push gitea --mirror
+          git push gitea --branches
+          git push gitea --tags
