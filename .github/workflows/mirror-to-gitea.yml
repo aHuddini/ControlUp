@@ -16,5 +16,7 @@ jobs:
       - name: Push mirror to Gitea
         run: |
           git remote add gitea https://aHuddini:${{ secrets.GITEA_TOKEN }}@gitea.com/aHuddini/ControlUp.git
-          git push gitea --branches
-          git push gitea --tags
+          git push gitea --branches && git push gitea --tags && exit 0
+          echo "First attempt failed, retrying in 10 minutes..."
+          sleep 600
+          git push gitea --branches && git push gitea --tags
