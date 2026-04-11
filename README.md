@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/version-2.5.0-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
 <p align="center">
@@ -14,7 +14,7 @@
 </p>
 
 ## About
-A Playnite extension that detects game controller connections and gamepad hotkeys, displaying a customizable popup prompting users to switch to fullscreen mode. Built on Playnite SDK 6.15 and its Controller API for Desktop Mode.
+A Playnite extension that detects game controller connections and gamepad hotkeys, displaying a customizable popup prompting users to switch to fullscreen mode. Built on Playnite SDK 6.16 and its Controller API for Desktop Mode.
 
 Includes the option to skip the pop-up to let the user directly switch to fullscreen.
 
@@ -22,21 +22,13 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 *Currently Tested on an Xbox Series X USB/Wireless Controller*
 
-## What's New in 2.0.0
+## What's New in 2.5.0
 
-Version 2.0.0 is a major release that completely overhauls the extension for **Playnite SDK 6.15**, taking advantage of the new Controller API commands and Playnite's SDL support for Desktop Mode.
+- **Playnite SDK 6.16.0** — Updated to the latest SDK (API 6.16.0, Playnite 10.52)
+- **Alternative fullscreen switch method** — Opt-in workaround for users experiencing crashes caused by extension incompatibility (e.g., Playnite Overlay). Enable in Settings → Troubleshooting.
+- **Troubleshooting: Extension incompatibility** — New section documenting crashes caused by conflicting extensions, with diagnosis steps and the alternative switch method.
 
-- **Major: Event-based controller detection** — No more polling. Performance is equally fast between DirectInput and XInput gamepads. Controllers are reliably detected so long as SDL supports them.
-- **Polling removed** — Power saving and idle mode features are no longer needed thanks to SDK event-based triggers.
-- **Long press reworked** — Timer-based approach after initial button press to work with event-based SDK. 2 seconds max.
-- **Blur padding** — Extends the pop-up blur window beyond the border for a pleasant bleed effect. Combine with border opacity for best results.
-- **Border opacity** — Lower values let the acrylic blur beautifully bleed through the border.
-- **Vignette effect (experimental)** — Optional edge-darkening for the pop-up.
-- **Toast notifications** — Non-blocking toasts with acrylic blur, defaulting to "Ocean Teal" to showcase notification potential.
-- **Standardized presets** — Consistent values across all pop-up and toast style presets.
-- **Troubleshooting updated** — Explains "XInput Controller #1" display name (SDL-related, not a bug).
-
-See [CHANGELOG.md](CHANGELOG.md) for full details.
+See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
 ## Features
 
@@ -90,6 +82,14 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ## Troubleshooting
 
+### Playnite crashes when switching to fullscreen
+
+If Playnite crashes or closes unexpectedly when ControlUp tries to switch to fullscreen mode (via controller connection, hotkey, or automatic detection), this is typically caused by an **incompatibility with another Playnite extension**. Extensions that hook into window management or overlay rendering can conflict with ControlUp's fullscreen switching. A known example is the [Playnite Overlay](https://github.com/hikaps/playnite-overlay) plugin.
+
+**Solutions:**
+1. Try disabling other extensions one at a time to identify the conflicting extension (especially overlay or window management plugins)
+2. If you cannot disable the conflicting extension, enable the **alternative fullscreen switch method** in Settings → Troubleshooting. This sends a command to the running Playnite instance to switch modes internally instead of launching `Playnite.FullscreenApp.exe` directly.
+
 ### Fullscreen mode doesn't launch after pressing Yes
 
 If the popup closes but fullscreen mode never appears, **Windows SmartScreen** may be blocking the launch. This happens because ControlUp launches `Playnite.FullscreenApp.exe` as a new process.
@@ -126,7 +126,7 @@ Run the packaging script:
 The `.pext` file will be created in the `pext` folder.
 
 ### Libraries & Dependencies
-- **Playnite SDK 6.15.0** - Extension framework
+- **Playnite SDK 6.16.0** - Extension framework
 - **SDL2** - Controller detection and input mapping (zlib license)
 - **MaterialDesignThemes & MaterialDesignColors** - WPF UI components (MIT)
 - **Microsoft.Xaml.Behaviors.Wpf** - XAML behaviors (MIT)

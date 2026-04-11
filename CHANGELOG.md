@@ -1,6 +1,14 @@
 # ControlUp Changelog
 
-## Version 2.0 (January 30, 2026)
+## Version 2.5.0 (April 11, 2026)
+
+### Updated to Playnite SDK 6.16.0 & Extension Compatibility Fix
+
+- **Playnite SDK 6.16.0**: Updated to the latest SDK (API 6.16.0, Playnite 10.52)
+- **Alternative fullscreen switch method**: Added an opt-in setting for users experiencing crashes when switching to fullscreen mode. Some Playnite extensions (e.g., Playnite Overlay) can conflict with the default fullscreen switching method. The alternative method sends a command to the running Playnite instance instead of launching the fullscreen app directly, avoiding the conflict. Enable it in Settings → Troubleshooting.
+- **Troubleshooting: Extension incompatibility section**: Added documentation about crashes caused by conflicting extensions, with steps to identify the issue and the alternative switch method as a workaround.
+
+## Version 2.0.0 (January 30, 2026)
 
 ### Major Release — Overhauled for Playnite SDK 6.15 & Controller API
 

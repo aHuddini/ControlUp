@@ -715,6 +715,46 @@
                         </StackPanel>
                     </Border>
 
+                    <!-- Extension Incompatibility / Crashing -->
+                    <TextBlock Text="Playnite Crashes When Switching to Fullscreen" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock Text="Symptom:" FontWeight="SemiBold" Foreground="#FFB74D" Margin="0,0,0,5"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,10">
+                                Playnite crashes or closes unexpectedly when ControlUp tries to switch to fullscreen mode (via controller connection, hotkey, or automatic detection). Disconnecting a controller may also cause a crash.
+                            </TextBlock>
+
+                            <TextBlock Text="Cause:" FontWeight="SemiBold" Foreground="#FFB74D" Margin="0,0,0,5"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0" Margin="0,0,0,10">
+                                This is typically caused by an incompatibility with another Playnite extension. Extensions that hook into window management or overlay rendering can conflict with ControlUp's fullscreen switching. A known example is the Playnite Overlay plugin.
+                            </TextBlock>
+
+                            <TextBlock Text="Solutions:" FontWeight="SemiBold" Foreground="#81C784" Margin="0,0,0,8"/>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,5">
+                                1. Try disabling other extensions one at a time to identify the conflicting extension (especially overlay or window management plugins).
+                            </TextBlock>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#E0E0E0" Margin="0,0,0,10">
+                                2. If you cannot disable the conflicting extension, enable the alternative fullscreen switch method below:
+                            </TextBlock>
+
+                            <Border Background="#1A3D2A" BorderBrush="#4CAF50" BorderThickness="1" CornerRadius="4" Padding="10" Margin="0,5,0,10">
+                                <StackPanel>
+                                    <CheckBox Content="Use alternative fullscreen switch method"
+                                              IsChecked="{Binding Settings.UseAlternativeFullscreenSwitch}"
+                                              Margin="0,0,0,8"
+                                              FontWeight="SemiBold"/>
+                                    <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#B0B0B0">
+                                        Instead of launching Playnite.FullscreenApp.exe directly, this sends a command to the running Playnite instance to switch modes internally. This avoids conflicts with extensions that hook into process/window creation, but may behave slightly differently (e.g., splash screen timing).
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock TextWrapping="Wrap" FontSize="11" Foreground="#B0B0B0" FontStyle="Italic">
+                                If you're still experiencing crashes after enabling the alternative method, please report the issue with your log files and a list of installed extensions.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
                     <!-- Log Files -->
                     <TextBlock Text="Getting Help" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
                     <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">

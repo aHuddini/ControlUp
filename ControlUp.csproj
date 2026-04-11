@@ -20,7 +20,7 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="PlayniteSDK" Version="6.15.0" PrivateAssets="none" />
+        <PackageReference Include="PlayniteSDK" Version="6.16.0" PrivateAssets="none" />
         <PackageReference Include="Microsoft.CSharp" Version="4.7.0" PrivateAssets="none" />
         <PackageReference Include="MaterialDesignThemes" Version="4.7.0" />
         <PackageReference Include="MaterialDesignColors" Version="2.1.0" />

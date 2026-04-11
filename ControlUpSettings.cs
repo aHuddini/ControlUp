@@ -12,6 +12,7 @@ namespace ControlUp
         private FullscreenTriggerMode _fullscreenTriggerMode = FullscreenTriggerMode.NewConnectionOnly;
         private bool _enableLogging = false;
         private bool _skipPopupOnConnection = false;
+        private bool _useAlternativeFullscreenSwitch = false;
 
         public FullscreenTriggerMode FullscreenTriggerMode
         {
@@ -29,6 +30,13 @@ namespace ControlUp
         {
             get => _skipPopupOnConnection;
             set => SetValue(ref _skipPopupOnConnection, value);
+        }
+
+        /// <summary>Use alternative fullscreen switch method (CLI flag instead of direct exe launch). Enable if experiencing crashes due to extension incompatibility.</summary>
+        public bool UseAlternativeFullscreenSwitch
+        {
+            get => _useAlternativeFullscreenSwitch;
+            set => SetValue(ref _useAlternativeFullscreenSwitch, value);
         }
 
         // Hotkey Settings
@@ -385,6 +393,7 @@ namespace ControlUp
                     FullscreenTriggerMode == o.FullscreenTriggerMode &&
                     EnableLogging == o.EnableLogging &&
                     SkipPopupOnConnection == o.SkipPopupOnConnection &&
+                    UseAlternativeFullscreenSwitch == o.UseAlternativeFullscreenSwitch &&
                     // Hotkey Settings
                     EnableHotkey == o.EnableHotkey &&
                     HotkeyCombo == o.HotkeyCombo &&

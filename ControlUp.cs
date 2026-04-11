@@ -51,7 +51,7 @@ namespace ControlUp
                 var extensionPath = Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location);
                 _fileLogger = new FileLogger(extensionPath);
                 var version = Assembly.GetExecutingAssembly().GetName().Version;
-                _fileLogger.Info($"=== ControlUp v{version} Starting (SDK 6.15 event-based) ===");
+                _fileLogger.Info($"=== ControlUp v{version} Starting (SDK 6.16 event-based) ===");
 
                 ControllerDetectedDialog.Logger = _fileLogger;
             }
@@ -538,23 +538,51 @@ namespace ControlUp
 
         private void SwitchToFullscreen()
         {
-            string fullscreenExe = Path.Combine(PlayniteApi.Paths.ApplicationPath, "Playnite.FullscreenApp.exe");
-            _fileLogger?.Info($"Launching: {fullscreenExe}");
-
-            if (File.Exists(fullscreenExe))
+            if (Settings.Settings.UseAlternativeFullscreenSwitch)
             {
-                var startInfo = new System.Diagnostics.ProcessStartInfo
+                // Alternative method: tells the running Playnite instance to switch modes via CLI flag.
+                // Use this if the default method causes crashes due to extension incompatibility.
+                string desktopExe = Path.Combine(PlayniteApi.Paths.ApplicationPath, "Playnite.DesktopApp.exe");
+                _fileLogger?.Info($"Switching to fullscreen (alternative) via: {desktopExe} --startfullscreen");
+
+                if (File.Exists(desktopExe))
                 {
-                    FileName = fullscreenExe,
-                    UseShellExecute = false,
-                    WorkingDirectory = PlayniteApi.Paths.ApplicationPath
-                };
-                System.Diagnostics.Process.Start(startInfo);
-                _fileLogger?.Info("Fullscreen app launched");
+                    var startInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = desktopExe,
+                        Arguments = "--startfullscreen --hidesplashscreen",
+                        UseShellExecute = false,
+                        WorkingDirectory = PlayniteApi.Paths.ApplicationPath
+                    };
+                    System.Diagnostics.Process.Start(startInfo);
+                    _fileLogger?.Info("Fullscreen switch command sent (alternative method)");
+                }
+                else
+                {
+                    _fileLogger?.Error($"Desktop app not found: {desktopExe}");
+                }
             }
             else
             {
-                _fileLogger?.Error($"Fullscreen app not found: {fullscreenExe}");
+                // Default method: launch the fullscreen app directly
+                string fullscreenExe = Path.Combine(PlayniteApi.Paths.ApplicationPath, "Playnite.FullscreenApp.exe");
+                _fileLogger?.Info($"Launching: {fullscreenExe}");
+
+                if (File.Exists(fullscreenExe))
+                {
+                    var startInfo = new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = fullscreenExe,
+                        UseShellExecute = false,
+                        WorkingDirectory = PlayniteApi.Paths.ApplicationPath
+                    };
+                    System.Diagnostics.Process.Start(startInfo);
+                    _fileLogger?.Info("Fullscreen app launched");
+                }
+                else
+                {
+                    _fileLogger?.Error($"Fullscreen app not found: {fullscreenExe}");
+                }
             }
         }
 
