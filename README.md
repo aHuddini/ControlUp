@@ -25,8 +25,8 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 ## What's New in 2.5.0
 
 - **Playnite SDK 6.16.0** — Updated to the latest SDK (API 6.16.0, Playnite 10.52)
-- **Alternative fullscreen switch method** — Opt-in workaround for users experiencing crashes caused by extension incompatibility (e.g., Playnite Overlay). Enable in Settings → Troubleshooting.
-- **Troubleshooting: Extension incompatibility** — New section documenting crashes caused by conflicting extensions, with diagnosis steps and the alternative switch method.
+- **Alternative fullscreen switch method** — Opt-in setting that uses Playnite's `--startfullscreen` CLI flag instead of launching `Playnite.FullscreenApp.exe` directly. Enable in Settings → Troubleshooting.
+- **Known extension incompatibility** — The [Playnite Overlay](https://github.com/hikaps/playnite-overlay) plugin causes Playnite to crash when ControlUp is installed. See Troubleshooting for details.
 
 See [CHANGELOG.md](CHANGELOG.md) for full version history.
 
@@ -84,11 +84,15 @@ See [CHANGELOG.md](CHANGELOG.md) for version history.
 
 ### Playnite crashes when switching to fullscreen
 
-If Playnite crashes or closes unexpectedly when ControlUp tries to switch to fullscreen mode (via controller connection, hotkey, or automatic detection), this is typically caused by an **incompatibility with another Playnite extension**. Extensions that hook into window management or overlay rendering can conflict with ControlUp's fullscreen switching. A known example is the [Playnite Overlay](https://github.com/hikaps/playnite-overlay) plugin.
+If Playnite crashes or closes unexpectedly when ControlUp is installed (on controller connect/disconnect or fullscreen switching), this is caused by an **incompatibility with another Playnite extension**. Extensions that hook into window management or overlay rendering can conflict with ControlUp.
 
-**Solutions:**
-1. Try disabling other extensions one at a time to identify the conflicting extension (especially overlay or window management plugins)
-2. If you cannot disable the conflicting extension, enable the **alternative fullscreen switch method** in Settings → Troubleshooting. This sends a command to the running Playnite instance to switch modes internally instead of launching `Playnite.FullscreenApp.exe` directly.
+**Known incompatible extensions:**
+- [Playnite Overlay](https://github.com/hikaps/playnite-overlay) — causes Playnite to crash when ControlUp is installed
+
+**What to do:**
+1. Disable the conflicting extension to confirm it's the cause
+2. Report the issue to the developers of the incompatible extension
+3. You can try the **alternative fullscreen switch method** in Settings → Troubleshooting, but this may not resolve all conflicts
 
 ### Fullscreen mode doesn't launch after pressing Yes
 
