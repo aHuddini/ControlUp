@@ -44,6 +44,8 @@ namespace ControlUp
         private FullscreenTriggerMode _lastTriggerMode;
         private bool _lastEnableHotkey;
 
+        private bool _gameRunning = false;
+
         public ControlUpPlugin(IPlayniteAPI playniteAPI) : base(playniteAPI)
         {
             try
@@ -75,6 +77,18 @@ namespace ControlUp
 
         public override Guid Id => Guid.Parse("8d646e1b-c919-49d7-be40-5ef9960064bc");
 
+        public override void OnGameStarted (OnGameStartedEventArgs args)
+        {
+            _gameRunning = true;
+            _fileLogger?.Info($"Game started: {args.Game?.Name}");
+        }
+
+        public override void OnGameStopped(OnGameStoppedEventArgs args)
+        {
+            _gameRunning = false;
+            _fileLogger?.Info($"Game stopped: {args.Game?.Name}");
+        }
+        
         public override void OnApplicationStarted(OnApplicationStartedEventArgs args)
         {
             var currentMode = PlayniteApi.ApplicationInfo.Mode;
@@ -94,7 +108,7 @@ namespace ControlUp
             bool sdkConnected = connectedControllers != null && connectedControllers.Count > 0;
             bool hidConnected = HidControllerDetector.IsAnyControllerConnected();
             _controllerWasConnected = sdkConnected || hidConnected;
-
+            
             // Get controller name from SDK or HID (HID includes connection type)
             string controllerName = null;
             if (sdkConnected && connectedControllers.Count > 0)
@@ -157,9 +171,9 @@ namespace ControlUp
             _fileLogger?.Info($"SDK OnControllerConnected: '{controllerName}' (ID: {controllerId})");
 
             // Don't trigger if in fullscreen, popup showing, or disabled
-            if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing)
+            if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing || _gameRunning)
             {
-                _fileLogger?.Info("Ignoring connection - fullscreen or popup showing");
+                _fileLogger?.Info("Ignoring connection - fullscreen, popup showing or game running");
                 return;
             }
 
