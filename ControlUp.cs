@@ -170,7 +170,7 @@ namespace ControlUp
             var controllerId = args.Controller?.InstanceId;
             _fileLogger?.Info($"SDK OnControllerConnected: '{controllerName}' (ID: {controllerId})");
 
-            // Don't trigger if in fullscreen, popup showing, or disabled
+            // Don't trigger if in fullscreen, popup showing, game already running or disabled
             if (PlayniteApi.ApplicationInfo.Mode == ApplicationMode.Fullscreen || _popupShowing || _gameRunning)
             {
                 _fileLogger?.Info("Ignoring connection - fullscreen, popup showing or game running");
