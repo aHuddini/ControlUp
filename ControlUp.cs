@@ -77,7 +77,7 @@ namespace ControlUp
 
         public override Guid Id => Guid.Parse("8d646e1b-c919-49d7-be40-5ef9960064bc");
 
-        public override void OnGameStarted (OnGameStartedEventArgs args)
+        public override void OnGameStarted(OnGameStartedEventArgs args)
         {
             _gameRunning = true;
             _fileLogger?.Info($"Game started: {args.Game?.Name}");
