@@ -33,6 +33,29 @@ $versionFull = (Get-Content $versionFile -Raw).Trim()
 # Convert version format: 1.0.0 -> 1_0_0 for filename
 $version = $versionFull -replace '\.', '_'
 
+# Sync AssemblyInfo.cs with version.txt (single source of truth).
+# AssemblyVersion/AssemblyFileVersion require 4 numeric parts (e.g. 2.5.1.0).
+$assemblyInfoPath = Join-Path $scriptDir "AssemblyInfo.cs"
+if (Test-Path $assemblyInfoPath) {
+    $asmContent = Get-Content $assemblyInfoPath -Raw
+    $asmVersion = if (($versionFull -replace '[^\.]','').Length -lt 3) { "$versionFull.0" } else { $versionFull }
+    $updatedAsm = $asmContent
+    $updatedAsm = $updatedAsm -replace 'AssemblyVersion\("[^"]*"\)',            "AssemblyVersion(`"$asmVersion`")"
+    $updatedAsm = $updatedAsm -replace 'AssemblyFileVersion\("[^"]*"\)',        "AssemblyFileVersion(`"$asmVersion`")"
+    $updatedAsm = $updatedAsm -replace 'AssemblyInformationalVersion\("[^"]*"\)', "AssemblyInformationalVersion(`"$versionFull`")"
+    if ($updatedAsm -ne $asmContent) {
+        Set-Content -Path $assemblyInfoPath -Value $updatedAsm -NoNewline
+        Write-Host "Synced AssemblyInfo.cs to version $versionFull" -ForegroundColor Yellow
+        Write-Host "  WARNING: AssemblyInfo.cs changed - rebuild before packaging so the DLL picks up the new version." -ForegroundColor Yellow
+        Write-Host "    dotnet build -c $Configuration" -ForegroundColor White
+        Write-Host ""
+    } else {
+        Write-Host "AssemblyInfo.cs already in sync with version $versionFull" -ForegroundColor Gray
+    }
+} else {
+    Write-Host "WARNING: AssemblyInfo.cs not found - skipping version sync" -ForegroundColor Yellow
+}
+
 # Build paths
 $outputDir = "bin\$Configuration\net4.6.2"
 $packageDir = "package"
@@ -55,6 +78,24 @@ $dllInfo = Get-Item $dllPath
 Write-Host "Found DLL: $($dllInfo.Name)" -ForegroundColor Green
 Write-Host "  Size: $([math]::Round($dllInfo.Length/1KB, 2)) KB" -ForegroundColor Gray
 Write-Host "  Modified: $($dllInfo.LastWriteTime)" -ForegroundColor Gray
+
+# Verify the built DLL's embedded version matches version.txt (drift guard).
+# Catches the case where AssemblyInfo.cs was just synced but the project wasn't rebuilt.
+try {
+    $dllVersion = [System.Reflection.AssemblyName]::GetAssemblyName($dllInfo.FullName).Version
+    $expectedVersion = [Version]($asmVersion)
+    Write-Host "  Assembly version: $dllVersion" -ForegroundColor Gray
+    if ($dllVersion -ne $expectedVersion) {
+        Write-Host ""
+        Write-Host "ERROR: DLL version ($dllVersion) does not match version.txt ($expectedVersion)." -ForegroundColor Red
+        Write-Host "The build output is stale. Rebuild before packaging:" -ForegroundColor Yellow
+        Write-Host "  dotnet build -c $Configuration" -ForegroundColor White
+        Write-Host ""
+        exit 1
+    }
+} catch [System.Management.Automation.MethodInvocationException] {
+    Write-Host "  WARNING: Could not read DLL assembly version - skipping drift check" -ForegroundColor Yellow
+}
 Write-Host ""
 
 # Clean previous package
