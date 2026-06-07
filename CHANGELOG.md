@@ -1,5 +1,15 @@
 # ControlUp Changelog
 
+## Version 2.5.1 (June 6, 2026)
+
+### No fullscreen prompt while a game is running
+
+- **Suppress prompt during gameplay**: ControlUp now tracks game start/stop and ignores controller connection events while a game is running. Connecting or reconnecting a controller mid-game (e.g. waking from sleep or re-pairing) no longer interrupts you with the switch-to-fullscreen prompt.
+- **Game state tracking**: Added handlers for Playnite's `OnGameStarted` / `OnGameStopped` events, logged when logging is enabled.
+- **Styling fixes**: Minor whitespace/formatting cleanup.
+
+Thanks to [@qoordination](https://github.com/qoordination) for contributing this release ([#5](https://github.com/aHuddini/ControlUp/pull/5)).
+
 ## Version 2.5.0 (April 11, 2026)
 
 ### Updated to Playnite SDK 6.16.0 & Extension Compatibility Notes

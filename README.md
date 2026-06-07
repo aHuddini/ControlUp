@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.5.0-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/version-2.5.1-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
 <p align="center">
@@ -22,7 +22,11 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 *Currently Tested on an Xbox Series X USB/Wireless Controller*
 
-## What's New in 2.5.0
+## What's New in 2.5.1
+
+- **No prompt during gameplay** — ControlUp now ignores controller connection events while a game is running, so reconnecting a controller mid-game (waking from sleep, re-pairing) no longer interrupts you with the switch-to-fullscreen prompt. Contributed by [@qoordination](https://github.com/qoordination) ([#5](https://github.com/aHuddini/ControlUp/pull/5)).
+
+Previously in 2.5.0:
 
 - **Playnite SDK 6.16.0** — Updated to the latest SDK (API 6.16.0, Playnite 10.52)
 - **Alternative fullscreen switch method** — Opt-in setting that uses Playnite's `--startfullscreen` CLI flag instead of launching `Playnite.FullscreenApp.exe` directly. Enable in Settings → Troubleshooting.
