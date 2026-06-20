@@ -508,9 +508,10 @@ namespace ControlUp
 
                     // Show toast notification for auto-switch feedback
                     NotifierHelper.SyncSettings(Settings.Settings);
+                    bool hideName = Settings.Settings.HideControllerName;
                     string toastMessage = source == FullscreenTriggerSource.Hotkey
                         ? "Hotkey triggered - switching to Fullscreen Mode"
-                        : !string.IsNullOrEmpty(controllerName)
+                        : (!hideName && !string.IsNullOrEmpty(controllerName))
                             ? $"{controllerName} connected - switching to Fullscreen Mode"
                             : "Controller connected - switching to Fullscreen Mode";
                     NotifierHelper.ShowInfo(toastMessage, "ControlUp");
