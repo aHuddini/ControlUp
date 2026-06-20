@@ -431,6 +431,11 @@ namespace ControlUp
                 Plugin.SavePluginSettings(Settings);
                 Plugin.OnSettingsChanged();
 
+                // Keep the edit-clone in sync so a later Cancel on the settings
+                // window doesn't restore the pre-import state (which would leave
+                // the on-disk file and in-memory settings inconsistent).
+                EditingClone = Serialization.GetClone(Settings);
+
                 PlayniteApi.Dialogs.ShowMessage("Settings imported successfully.", "ControlUp");
             }
             catch (Exception ex)
