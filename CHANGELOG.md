@@ -1,5 +1,14 @@
 # ControlUp Changelog
 
+## Version 2.5.2 (June 19, 2026)
+
+### Hide controller name & settings backup
+
+- **Hide controller name**: New General-tab option that shows a generic "Controller has been connected" message in pop-ups and toasts instead of the specific controller's name. Disabled by default. ([#7](https://github.com/aHuddini/ControlUp/issues/7))
+- **Backup & restore**: New "Backup" settings tab to export all ControlUp settings to a JSON file and import them back — for moving your customizations across reinstalls or to another PC. Import asks for confirmation and leaves current settings untouched if the file is invalid. ([#7](https://github.com/aHuddini/ControlUp/issues/7))
+
+Thanks to [@Gamer1478x](https://github.com/Gamer1478x) for the suggestions ([#7](https://github.com/aHuddini/ControlUp/issues/7)).
+
 ## Version 2.5.1 (June 6, 2026)
 
 ### No fullscreen prompt while a game is running

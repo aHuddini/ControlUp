@@ -22,7 +22,12 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 *Currently Tested on an Xbox Series X USB/Wireless Controller*
 
-## What's New in 2.5.1
+## What's New in 2.5.2
+
+- **Hide controller name** — optionally show a generic "Controller has been connected" message in pop-ups and toasts instead of the specific controller's name (Settings → General). ([#7](https://github.com/aHuddini/ControlUp/issues/7))
+- **Backup & restore** — export all settings to a JSON file and import them back from the new Backup tab, to move your setup across reinstalls or PCs. ([#7](https://github.com/aHuddini/ControlUp/issues/7))
+
+Previously in 2.5.1:
 
 - **No prompt during gameplay** — ControlUp now ignores controller connection events while a game is running, so reconnecting a controller mid-game (waking from sleep, re-pairing) no longer interrupts you with the switch-to-fullscreen prompt. Contributed by [@qoordination](https://github.com/qoordination) ([#5](https://github.com/aHuddini/ControlUp/pull/5)).
 
@@ -39,6 +44,8 @@ See [CHANGELOG.md](CHANGELOG.md) for full version history.
 - **Detection Modes**: New connection only, any controller anytime, or startup only
 - **Controller Detection Popup**: Customizable popup when a controller is connected, asking to switch to fullscreen
 - **Toast Notifications**: Brief, non-blocking notifications for events like auto-switching
+- **Hide Controller Name**: Optionally show a generic message instead of the controller's name in pop-ups and toasts
+- **Backup & Restore**: Export all settings to a JSON file and import them back (Backup tab)
 - **Controller Hotkey**: Button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons with long press
 - **Controller Navigation**: D-pad/thumbsticks to navigate, A to confirm, B to cancel
 - **Style Presets**: Quick-apply color schemes for both pop-up and toast notifications
