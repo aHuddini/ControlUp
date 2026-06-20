@@ -380,6 +380,66 @@ namespace ControlUp
             }
         });
 
+        public RelayCommand ExportSettingsCommand => new RelayCommand(() =>
+        {
+            try
+            {
+                string path = PlayniteApi.Dialogs.SaveFile("JSON files|*.json");
+                if (string.IsNullOrEmpty(path)) return;
+
+                string version = Assembly.GetExecutingAssembly().GetName().Version.ToString();
+                string json = SettingsBackupService.Export(Settings, version);
+                File.WriteAllText(path, json);
+
+                PlayniteApi.Dialogs.ShowMessage("Settings exported successfully.", "ControlUp");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to export settings");
+                PlayniteApi.Dialogs.ShowErrorMessage($"Export failed: {ex.Message}", "ControlUp");
+            }
+        });
+
+        public RelayCommand ImportSettingsCommand => new RelayCommand(() =>
+        {
+            try
+            {
+                string path = PlayniteApi.Dialogs.SelectFile("JSON files|*.json");
+                if (string.IsNullOrEmpty(path)) return;
+
+                ControlUpSettings imported;
+                try
+                {
+                    string json = File.ReadAllText(path);
+                    imported = SettingsBackupService.Import(json);
+                }
+                catch (Exception ex)
+                {
+                    Logger.Error(ex, "Failed to parse backup file");
+                    PlayniteApi.Dialogs.ShowErrorMessage(
+                        "This doesn't appear to be a valid ControlUp backup file.", "ControlUp");
+                    return;
+                }
+
+                var confirm = PlayniteApi.Dialogs.ShowMessage(
+                    "Replace all current ControlUp settings with the imported backup? This cannot be undone.",
+                    "ControlUp",
+                    System.Windows.MessageBoxButton.YesNo);
+                if (confirm != System.Windows.MessageBoxResult.Yes) return;
+
+                Settings = imported;
+                Plugin.SavePluginSettings(Settings);
+                Plugin.OnSettingsChanged();
+
+                PlayniteApi.Dialogs.ShowMessage("Settings imported successfully.", "ControlUp");
+            }
+            catch (Exception ex)
+            {
+                Logger.Error(ex, "Failed to import settings");
+                PlayniteApi.Dialogs.ShowErrorMessage($"Import failed: {ex.Message}", "ControlUp");
+            }
+        });
+
         public RelayCommand PreviewNotificationCommand => new RelayCommand(() =>
         {
             try
