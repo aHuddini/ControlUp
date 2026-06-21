@@ -39,6 +39,15 @@ namespace ControlUp
             set => SetValue(ref _useAlternativeFullscreenSwitch, value);
         }
 
+        private bool _hideControllerName = false;
+
+        /// <summary>When true, pop-ups and toasts show a generic message instead of the controller's name.</summary>
+        public bool HideControllerName
+        {
+            get => _hideControllerName;
+            set => SetValue(ref _hideControllerName, value);
+        }
+
         // Hotkey Settings
         private bool _enableHotkey = true;
         private ControllerHotkey _hotkeyCombo = ControllerHotkey.StartPlusRB;
@@ -394,6 +403,7 @@ namespace ControlUp
                     EnableLogging == o.EnableLogging &&
                     SkipPopupOnConnection == o.SkipPopupOnConnection &&
                     UseAlternativeFullscreenSwitch == o.UseAlternativeFullscreenSwitch &&
+                    HideControllerName == o.HideControllerName &&
                     // Hotkey Settings
                     EnableHotkey == o.EnableHotkey &&
                     HotkeyCombo == o.HotkeyCombo &&

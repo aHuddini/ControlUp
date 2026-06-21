@@ -141,19 +141,22 @@ namespace ControlUp.Dialogs
 
         private void ApplyTriggerSourceText()
         {
+            bool hideName = _settings.HideControllerName;
+            bool haveName = !string.IsNullOrEmpty(_controllerName);
+
             if (_triggerSource == FullscreenTriggerSource.Hotkey)
             {
                 TitleText.Text = "Hotkey Pressed";
-                MessageText.Text = !string.IsNullOrEmpty(_controllerName)
+                MessageText.Text = (!hideName && haveName)
                     ? $"{_controllerName} hotkey was pressed."
                     : "Fullscreen mode hotkey was pressed.";
             }
             else
             {
                 TitleText.Text = "Controller Detected";
-                MessageText.Text = !string.IsNullOrEmpty(_controllerName)
+                MessageText.Text = (!hideName && haveName)
                     ? $"{_controllerName} has been connected."
-                    : "A game controller has been connected.";
+                    : "Controller has been connected.";
             }
         }
 
