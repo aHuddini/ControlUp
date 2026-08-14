@@ -38,6 +38,9 @@ namespace ControlUp
         // Logging
         private FileLogger _fileLogger;
 
+        // Detection sound (played by UniPlaySong — see SoundTriggerService)
+        private SoundTriggerService _soundTrigger;
+
         public ControlUpSettingsViewModel Settings { get; private set; }
 
         // Track settings for change detection
@@ -64,6 +67,7 @@ namespace ControlUp
 
             Properties = new GenericPluginProperties { HasSettings = true };
             Settings = new ControlUpSettingsViewModel(this, PlayniteApi);
+            _soundTrigger = new SoundTriggerService(PlayniteApi, _fileLogger);
 
             AddSettingsSupport(new AddSettingsSupportArgs
             {
@@ -134,6 +138,7 @@ namespace ControlUp
                 if (_controllerWasConnected)
                 {
                     _fileLogger?.Info("StartupOnly mode: Controller detected, triggering fullscreen");
+                    PlayTriggerSound(FullscreenTriggerSource.Connection);
                     DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, controllerName));
                 }
                 return;
@@ -142,6 +147,7 @@ namespace ControlUp
             if (_controllerWasConnected && triggerMode == FullscreenTriggerMode.AnyControllerAnytime)
             {
                 _fileLogger?.Info("AnyControllerAnytime: Controller already connected at startup, triggering fullscreen");
+                PlayTriggerSound(FullscreenTriggerSource.Connection);
                 DelayedTrigger(500, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, controllerName));
             }
 
@@ -199,6 +205,7 @@ namespace ControlUp
                 // This ensures button events will work in the dialog
                 var name = controllerName;
                 _fileLogger?.Info($"Triggering fullscreen switch for controller: {name} (with 300ms delay for SDL init)");
+                PlayTriggerSound(FullscreenTriggerSource.Connection);  // before the SDL-init delay below
                 DelayedTrigger(300, () => TriggerFullscreenSwitch(FullscreenTriggerSource.Connection, name));
             }
         }
@@ -321,8 +328,14 @@ namespace ControlUp
                     if (!_hotkeyTriggered)
                     {
                         _hotkeyTriggered = true;
+
                         var nameToUse = !string.IsNullOrEmpty(controllerName) ? controllerName : _currentHotkeyControllerName;
                         _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} detected via SDK (controller: {nameToUse})");
+
+                        // Sound before the pop-up: the pop-up is an in-process window, so anything
+                        // queued after it lands second.
+                        PlayTriggerSound(FullscreenTriggerSource.Hotkey);
+
                         Application.Current?.Dispatcher?.BeginInvoke(new Action(() =>
                         {
                             TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, nameToUse);
@@ -358,6 +371,7 @@ namespace ControlUp
                 _hotkeyLongPressTriggered = true;
                 var controllerName = _currentHotkeyControllerName;
                 _fileLogger?.Info($"Hotkey {Settings.Settings.HotkeyCombo} long-pressed for {heldMs:F0}ms (controller: {controllerName})");
+                PlayTriggerSound(FullscreenTriggerSource.Hotkey);
                 StopLongPressTimer();
                 TriggerFullscreenSwitch(FullscreenTriggerSource.Hotkey, controllerName);
             }
@@ -549,6 +563,17 @@ namespace ControlUp
                 _popupShowing = false;
                 _activeDialog = null;
             }
+        }
+
+        /// <summary>Plays the detection sound, if the user enabled it for this trigger source.</summary>
+        private void PlayTriggerSound(FullscreenTriggerSource source)
+        {
+            bool enabled = source == FullscreenTriggerSource.Hotkey
+                ? Settings.Settings.EnableHotkeySound
+                : Settings.Settings.EnableDetectSound;
+
+            if (enabled)
+                _soundTrigger?.PlayDetectSound();
         }
 
         private void SwitchToFullscreen()

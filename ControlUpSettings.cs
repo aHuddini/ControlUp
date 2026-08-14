@@ -48,6 +48,34 @@ namespace ControlUp
             set => SetValue(ref _hideControllerName, value);
         }
 
+        // Sound Settings
+        //
+        // Sounds are played by UniPlaySong, triggered via Constants.DetectSoundUri. ControlUp only
+        // decides WHETHER to fire; UniPlaySong owns which sound plays and has its own enable switch,
+        // so nothing is audible until it is turned on there too. Both toggles no-op when UniPlaySong
+        // isn't installed.
+        private bool _enableDetectSound = false;
+        // On by default: a hotkey press has no other feedback until the pop-up opens, and the
+        // pop-up is in-process so it otherwise lands before any audio. Harmless without
+        // UniPlaySong installed, and silent until the sound is enabled on its side too.
+        private bool _enableHotkeySound = true;
+
+        /// <summary>Play a sound when a controller connection triggers ControlUp.</summary>
+        public bool EnableDetectSound
+        {
+            get => _enableDetectSound;
+            set => SetValue(ref _enableDetectSound, value);
+        }
+
+        /// <summary>Play a sound when a hotkey triggers ControlUp.</summary>
+        public bool EnableHotkeySound
+        {
+            get => _enableHotkeySound;
+            set => SetValue(ref _enableHotkeySound, value);
+        }
+
+
+
         // Hotkey Settings
         private bool _enableHotkey = true;
         private ControllerHotkey _hotkeyCombo = ControllerHotkey.StartPlusRB;
@@ -404,6 +432,8 @@ namespace ControlUp
                     SkipPopupOnConnection == o.SkipPopupOnConnection &&
                     UseAlternativeFullscreenSwitch == o.UseAlternativeFullscreenSwitch &&
                     HideControllerName == o.HideControllerName &&
+                    EnableDetectSound == o.EnableDetectSound &&
+                    EnableHotkeySound == o.EnableHotkeySound &&
                     // Hotkey Settings
                     EnableHotkey == o.EnableHotkey &&
                     HotkeyCombo == o.HotkeyCombo &&

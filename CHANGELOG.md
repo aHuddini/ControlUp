@@ -1,5 +1,12 @@
 # ControlUp Changelog
 
+## Version 2.5.3 (August 13, 2026)
+
+### Sound notifications
+
+- **New Sound tab**: Play a sound when ControlUp is triggered, with separate toggles for controller connections and hotkeys — enable either, both, or neither. The hotkey sound is on by default; the connection sound is off. Nothing plays until the ControlUp sound is also enabled in UniPlaySong, so updating won't introduce a sound you didn't ask for.
+- **Requires [UniPlaySong](https://github.com/aHuddini/UniPlaySong)**, which provides the sound: pick which one plays in its Gamification settings, where the ControlUp sound must also be enabled. The options do nothing without it, and nothing plays until it is enabled there too.
+
 ## Version 2.5.2 (June 19, 2026)
 
 ### Hide controller name & settings backup

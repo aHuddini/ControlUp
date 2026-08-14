@@ -4,7 +4,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.5.2-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
+  <img src="https://img.shields.io/badge/version-2.5.3-blue.svg" alt="Version"> <img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License">
 </p>
 
 <p align="center">
@@ -22,7 +22,11 @@ Includes the option to skip the pop-up to let the user directly switch to fullsc
 
 *Currently Tested on an Xbox Series X USB/Wireless Controller*
 
-## What's New in 2.5.2
+## What's New in 2.5.3
+
+- **Sound notifications** — new Sound tab plays a sound when ControlUp is triggered, with separate toggles for controller connections and hotkeys. Requires [UniPlaySong](https://github.com/aHuddini/UniPlaySong) 1.7.2+, which provides the sound — choose it in UniPlaySong's Gamification settings, where the ControlUp sound must also be enabled.
+
+Previously in 2.5.2:
 
 - **Hide controller name** — optionally show a generic "Controller has been connected" message in pop-ups and toasts instead of the specific controller's name (Settings → General). ([#7](https://github.com/aHuddini/ControlUp/issues/7))
 - **Backup & restore** — export all settings to a JSON file and import them back from the new Backup tab, to move your setup across reinstalls or PCs. ([#7](https://github.com/aHuddini/ControlUp/issues/7))
@@ -46,6 +50,7 @@ See [CHANGELOG.md](CHANGELOG.md) for full version history.
 - **Toast Notifications**: Brief, non-blocking notifications for events like auto-switching
 - **Hide Controller Name**: Optionally show a generic message instead of the controller's name in pop-ups and toasts
 - **Backup & Restore**: Export all settings to a JSON file and import them back (Backup tab)
+- **Sound Notifications**: Play a sound on controller connection and/or hotkey, with separate toggles (requires UniPlaySong 1.7.2+)
 - **Controller Hotkey**: Button combos (Start+RB, Guide+Start, LB+RB, etc.) or single buttons with long press
 - **Controller Navigation**: D-pad/thumbsticks to navigate, A to confirm, B to cancel
 - **Style Presets**: Quick-apply color schemes for both pop-up and toast notifications

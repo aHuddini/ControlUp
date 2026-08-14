@@ -576,6 +576,42 @@
             </ScrollViewer>
         </TabItem>
 
+        <!-- Sound Tab -->
+        <TabItem Header="Sound">
+            <ScrollViewer VerticalScrollBarVisibility="Auto">
+                <StackPanel Margin="20">
+                    <TextBlock Text="Sound Notifications" FontSize="18" FontWeight="Bold" Margin="0,0,0,20"/>
+
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <TextBlock TextWrapping="Wrap" FontSize="12" Foreground="#B0B0B0">
+                                Play a sound when ControlUp is triggered. Sounds are provided by UniPlaySong 1.7.2 or later — choose which sound plays in its Gamification settings, where the ControlUp sound must also be enabled. These options do nothing without it.
+                            </TextBlock>
+                        </StackPanel>
+                    </Border>
+
+                    <TextBlock Text="Play Sound On" FontWeight="SemiBold" FontSize="14" Margin="0,0,0,10"/>
+                    <Border Background="#2D2D30" BorderBrush="#3F3F46" BorderThickness="1" CornerRadius="4" Padding="12" Margin="0,0,0,20">
+                        <StackPanel>
+                            <CheckBox Content="Trigger Sound Notification On Detection [UniPlaySong Required]"
+                                     IsChecked="{Binding Settings.EnableDetectSound}"
+                                     Margin="0,0,0,0"/>
+                            <TextBlock Text="Plays when a controller connection triggers ControlUp."
+                                      FontSize="11" Foreground="Gray" TextWrapping="Wrap" Margin="20,4,0,0"/>
+
+                            <CheckBox Content="Trigger Sound Notification On Hotkey [UniPlaySong Required]"
+                                     IsChecked="{Binding Settings.EnableHotkeySound}"
+                                     Margin="0,12,0,0"/>
+                            <TextBlock Text="Plays when your controller hotkey triggers ControlUp. On by default."
+                                      FontSize="11" Foreground="Gray" TextWrapping="Wrap" Margin="20,4,0,0"/>
+                        </StackPanel>
+                    </Border>
+
+
+                </StackPanel>
+            </ScrollViewer>
+        </TabItem>
+
         <!-- Backup Tab -->
         <TabItem Header="Backup">
             <ScrollViewer VerticalScrollBarVisibility="Auto">

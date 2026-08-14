@@ -1,4 +1,4 @@
-using System.Reflection;
+﻿using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
@@ -7,6 +7,6 @@ using System.Runtime.InteropServices;
 
 // Version information - synced from version.txt by package_extension.ps1.
 // Edit version.txt (single source of truth), not these lines.
-[assembly: AssemblyVersion("2.5.2.0")]
-[assembly: AssemblyFileVersion("2.5.2.0")]
-[assembly: AssemblyInformationalVersion("2.5.2")]
+[assembly: AssemblyVersion("2.5.3.0")]
+[assembly: AssemblyFileVersion("2.5.3.0")]
+[assembly: AssemblyInformationalVersion("2.5.3")]
